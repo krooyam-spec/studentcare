@@ -1,0 +1,6 @@
+{
+  "name": "ระบบเยี่ยมบ้านนักเรียน",
+  "description": "ระบบบันทึก จัดการ และคัดกรองพฤติกรรมการเยี่ยมบ้านนักเรียน พร้อมระบบประเมินความเสี่ยงและสรุปด้วยปัญญาประดิษฐ์ (AI)",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

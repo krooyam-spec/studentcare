@@ -1,0 +1,175 @@
+<?php
+/**
+ * DB Connect configuration with MySQL/MariaDB for Student Visit System
+ * PDO Driver - Secure Prepared Statements
+ */
+
+define('DB_HOST', 'localhost');
+define('DB_USER', 'root');
+define('DB_PASS', '');
+define('DB_NAME', 'student_visit_db');
+
+try {
+    // 1. First connect to database server without selecting DB (in case database doesn't exist yet)
+    $pdo = new PDO("mysql:host=" . DB_HOST . ";charset=utf8mb4", DB_USER, DB_PASS, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+    ]);
+
+    // 2. Create database if not exists
+    $pdo->exec("CREATE DATABASE IF NOT EXISTS `" . DB_NAME . "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    $pdo->exec("USE `" . DB_NAME . "`");
+
+    // 3. Auto-Installer: Check if table 'students' exists. Install schema if missing!
+    $tableCheck = $pdo->query("SHOW TABLES LIKE 'students'");
+    if ($tableCheck->rowCount() == 0) {
+        // Tables do not exist, run the setup commands
+        $sqlSchema = "
+        CREATE TABLE IF NOT EXISTS `students` (
+          `id` VARCHAR(50) NOT NULL,
+          `student_code` VARCHAR(55) NULL,
+          `prefix` VARCHAR(30) NULL,
+          `name` VARCHAR(150) NOT NULL,
+          `nickname` VARCHAR(50) NOT NULL,
+          `gender` VARCHAR(20) NULL,
+          `birth_date` VARCHAR(50) NULL,
+          `grade` VARCHAR(30) NOT NULL,
+          `room` VARCHAR(10) NULL,
+          `citizen_id` VARCHAR(30) NULL,
+          `address` TEXT NOT NULL,
+          `village` VARCHAR(50) NULL,
+          `subdistrict` VARCHAR(100) NULL,
+          `district` VARCHAR(100) NULL,
+          `province` VARCHAR(100) NULL,
+          `zipcode` VARCHAR(10) NULL,
+          `parent_name` VARCHAR(150) NULL,
+          `parent_relation` VARCHAR(100) NULL,
+          `parent_phone` VARCHAR(30) NULL,
+          `parent_job` VARCHAR(100) NULL,
+          `latitude` DOUBLE NULL,
+          `longitude` DOUBLE NULL,
+          `visit_status` VARCHAR(20) NOT NULL DEFAULT 'pending',
+          `risk_level` VARCHAR(20) NOT NULL DEFAULT 'not_assessed',
+          `last_visited_date` VARCHAR(50) NULL,
+          PRIMARY KEY (`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+        CREATE TABLE IF NOT EXISTS `visit_records` (
+          `id` VARCHAR(50) NOT NULL,
+          `student_id` VARCHAR(50) NOT NULL,
+          `visited_date` VARCHAR(50) NOT NULL,
+          `semester` VARCHAR(10) NOT NULL DEFAULT '1',
+          `school_year` VARCHAR(10) NOT NULL DEFAULT '2569',
+          `visitor_name` VARCHAR(150) NOT NULL,
+          `informant_name` VARCHAR(150) NOT NULL,
+          `informant_relation` VARCHAR(100) NOT NULL,
+          `family_status` VARCHAR(200) NOT NULL,
+          `living_with` VARCHAR(200) NOT NULL,
+          `guardian_name` VARCHAR(150) NOT NULL,
+          `guardian_relation` VARCHAR(100) NOT NULL,
+          `guardian_citizen_id` VARCHAR(50) NOT NULL,
+          `guardian_education` VARCHAR(100) NOT NULL,
+          `guardian_job` VARCHAR(100) NOT NULL,
+          `guardian_phone` VARCHAR(50) NOT NULL,
+          `state_welfare` VARCHAR(200) NOT NULL,
+          `total_members` INT NOT NULL DEFAULT 1,
+          `house_ownership` VARCHAR(100) NOT NULL,
+          `monthly_rent` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+          `floor_material` VARCHAR(100) NOT NULL,
+          `wall_material` VARCHAR(100) NOT NULL,
+          `roof_material` VARCHAR(100) NOT NULL,
+          `has_toilet` VARCHAR(50) NOT NULL,
+          `farm_land` DOUBLE NOT NULL DEFAULT 0,
+          `water_source` VARCHAR(100) NOT NULL,
+          `electricity` VARCHAR(100) NOT NULL,
+          `vehicles` VARCHAR(255) NOT NULL,
+          `travel_method` VARCHAR(100) NOT NULL,
+          `travel_distance` DOUBLE NOT NULL DEFAULT 0,
+          `travel_time` VARCHAR(100) NOT NULL,
+          `travel_cost` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+          `daily_allowance` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+          `home_address` TEXT NOT NULL,
+          `latitude` DOUBLE NULL,
+          `longitude` DOUBLE NULL,
+          `student_image` MEDIUMTEXT NULL,
+          `outside_image` MEDIUMTEXT NULL,
+          `inside_image` MEDIUMTEXT NULL,
+          `signature_student` MEDIUMTEXT NULL,
+          `signature_parent` MEDIUMTEXT NULL,
+          `signature_teacher` MEDIUMTEXT NULL,
+          `signature_gov` MEDIUMTEXT NULL,
+          `signature_director` MEDIUMTEXT NULL,
+          `teacher_name` VARCHAR(155) NOT NULL,
+          `director_name` VARCHAR(155) NOT NULL,
+          `gov_name` VARCHAR(155) NOT NULL,
+          `gov_position` VARCHAR(155) NOT NULL,
+          `note` TEXT NULL,
+          `manual_risk_assessment` VARCHAR(20) NOT NULL DEFAULT 'normal',
+          `manual_action_notes` TEXT NULL,
+          `ai_summary` TEXT NULL,
+          `ai_strengths` TEXT NULL,
+          `ai_challenges` TEXT NULL,
+          `ai_risk_level` VARCHAR(20) NULL,
+          `ai_action_plan` TEXT NULL,
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (`id`),
+          FOREIGN KEY (`student_id`) REFERENCES `students` (`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+        CREATE TABLE IF NOT EXISTS `household_members` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `visit_id` VARCHAR(50) NOT NULL,
+          `full_name` VARCHAR(150) NOT NULL,
+          `relation` VARCHAR(100) NOT NULL,
+          `citizen_id` VARCHAR(30) NULL,
+          `age` VARCHAR(10) NULL,
+          `total_income` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+          FOREIGN KEY (`visit_id`) REFERENCES `visit_records` (`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+        CREATE TABLE IF NOT EXISTS `schedules` (
+          `id` VARCHAR(50) NOT NULL,
+          `student_id` VARCHAR(50) NOT NULL,
+          `scheduled_date` VARCHAR(50) NOT NULL,
+          `scheduled_time` VARCHAR(10) NOT NULL,
+          `notes` TEXT NULL,
+          `status` VARCHAR(20) NOT NULL DEFAULT 'pending',
+          PRIMARY KEY (`id`),
+          FOREIGN KEY (`student_id`) REFERENCES `students` (`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+        CREATE TABLE IF NOT EXISTS `checklist` (
+          `id` VARCHAR(50) NOT NULL,
+          `task` VARCHAR(255) NOT NULL,
+          `category` VARCHAR(50) NOT NULL,
+          `completed` TINYINT(1) NOT NULL DEFAULT 0,
+          PRIMARY KEY (`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        ";
+
+        $pdo->exec($sqlSchema);
+
+        // Seed initial data
+        $pdo->exec("
+            INSERT INTO `students` (`id`, `student_code`, `prefix`, `name`, `nickname`, `gender`, `birth_date`, `grade`, `room`, `citizen_id`, `address`, `parent_name`, `parent_relation`, `parent_phone`, `parent_job`, `latitude`, `longitude`, `visit_status`, `risk_level`) VALUES
+            ('STD001', '10952', 'เด็กชาย', 'กิตติศักดิ์ มั่งคั่ง', 'กอล์ฟ', 'ชาย', '2011-04-12', 'ม.3/2', '2', '1100412589632', '12/4 หมู่ 2 ต.ห้วยชัน อ.เมือง จ.นครสวรรค์ 60000', 'สมยศ มั่งคั่ง', 'บิดา', '0812345678', 'รับจ้างทั่วไป', 15.702462, 100.137254, 'pending', 'not_assessed'),
+            ('STD002', '10953', 'เด็กหญิง', 'จารุวรรณ ใยใส', 'จ๋า', 'หญิง', '2011-08-25', 'ม.3/2', '2', '1100412589633', '45 หมู่ 6 ต.ห้วยชัน อ.เมือง จ.นครสวรรค์ 60000', 'นภา ใยใส', 'มารดา', '0887654321', 'พนักงานโรงงาน', 15.708912, 100.125191, 'pending', 'not_assessed'),
+            ('STD003', '10954', 'เด็กชาย', 'ธรรมนูญ ยืนยง', 'นิว', 'ชาย', '2011-01-05', 'ม.3/2', '2', '1100412589634', '88/1 ต.ห้วยชัน อ.เมือง จ.นครสวรรค์ 60000', 'สมควร ยืนยง', 'ปู่', '0894567890', 'เกษตรกร', 15.697154, 100.142981, 'pending', 'not_assessed'),
+            ('STD004', '10955', 'เด็กหญิง', 'พิมพ์ชนก รอดพ้น', 'พลอย', 'หญิง', '2011-11-14', 'ม.3/2', '2', '1100412589635', '124 หมู่ 9 ต.ห้วยชัน อ.เมือง จ.นครสวรรค์ 60000', 'รินดา รอดพ้น', 'มารดา', '0823456789', 'ค้าขาย', 15.711202, 100.131422, 'pending', 'not_assessed');
+
+            INSERT INTO `checklist` (`id`, `task`, `category`, `completed`) VALUES
+            ('CHK1', 'จัดเตรียมแบบบันทึก นร.01 และนัดแนะผู้ปกครองล่วงหน้า', 'prepare', 1),
+            ('CHK2', 'ตรวจสอบเบอร์ติดต่อและดาวน์โหลดพิกัด GPS จุดหมาย', 'prepare', 1),
+            ('CHK3', 'เตรียมของอุปโภคช่วยเหลือแรกพบ (ถุงปันสุข สภาพวิกฤต)', 'prepare', 0),
+            ('CHK4', 'ถ่ายภาพนักเรียนและสังเกตสภาพความมั่นคงของบ้านดินมุงหลังคาแป้น', 'on_visit', 0),
+            ('CHK5', 'พูดคุยประเมินรายได้จริง รายจ่ายและบันทึกข้อมูลสมาชิก 13 หลัก', 'on_visit', 0),
+            ('CHK6', 'ให้ผู้ปกครอง นักเรียน และตัวแทนท้องถิ่นเขียนสิทธิ์ลงนามดิจิทัลบนแท็บเล็ต/มือถือครู', 'on_visit', 0),
+            ('CHK7', 'ประเมินความเสี่ยงและวิเคราะห์แผนฟื้นฟูปันสุขด้วย AI สรุปรายงาน', 'after_visit', 0),
+            ('CHK8', 'พิมพ์รายงาน นร.01 นำเสนอผู้อำนวยการเพื่อรับเงินอุดหนุนแบบมีเงื่อนไข กสศ.', 'after_visit', 0);
+        ");
+    }
+} catch (PDOException $e) {
+    die("เชื่อมต่อฐานข้อมูลล้มเหลว (Connection failed): " . $e->getMessage() . "<br><br><b>คำแนะนำสำหรับครูผู้ควบคุมระบบ:</b> กรุณาเปิดโปรแกรม XAMPP / AppServ แล้วทำการตรวจสอบว่า MySQL ได้รันอยู่ตามปกติ รวมถึงกำหนดรหัสผ่านและชื่อผู้ใช้งาน (DB_USER, DB_PASS) ในไฟล์ <code>db_connect.php</code> ให้ถูกต้องด้วยครับ");
+}
+?>

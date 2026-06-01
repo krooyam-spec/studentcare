@@ -1,0 +1,31 @@
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,300;1,400&family=Anuphan:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Anuphan", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-sarabun: "Sarabun", "Anuphan", sans-serif;
+}
+
+/* Full-Screen Print Parameters */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  header, nav, sidebar, footer, .print\:hidden {
+    display: none !important;
+  }
+  #print-sheet-wrapper {
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 20px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  #signature-block {
+    margin-top: 60px !important;
+    page-break-inside: avoid !important;
+  }
+}
