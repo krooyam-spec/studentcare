@@ -342,6 +342,27 @@ try {
                     }
                 } catch (PDOException $ex) {}
             }
+
+            // Ensure sample school smiss codes exist and are approved so teacher registration can list them and function flawlessly
+            $sampleSchools = [
+                '10123456' => ['school_name' => 'โรงเรียนกิตติศึกษาประชานุสรณ์', 'province' => 'นครสวรรค์', 'district' => 'เมือง', 'director_name' => 'นายณรงค์วิทย์ สุวรรณศรี', 'status' => 'approved'],
+                '10123457' => ['school_name' => 'โรงเรียนวัดห้วยชันวิทยา', 'province' => 'นครสวรรค์', 'district' => 'เมือง', 'director_name' => 'นางสาวจารุภัทร จิตมั่นคง', 'status' => 'approved'],
+                '10123458' => ['school_name' => 'โรงเรียนนครสวรรค์พิทยาคม', 'province' => 'นครสวรรค์', 'district' => 'เมือง', 'director_name' => 'นายสมคิด ดีเลิศ', 'status' => 'approved'],
+                '10123459' => ['school_name' => 'โรงเรียนบ้านท่าลาดวิทยา', 'province' => 'นครสวรรค์', 'district' => 'ท่าตะโก', 'director_name' => 'นายวินัย ชัยประเสริฐ', 'status' => 'pending']
+            ];
+            foreach ($sampleSchools as $smissCode => $schData) {
+                try {
+                    $checkSch = $pdo->prepare("SELECT smiss_code FROM schools WHERE smiss_code = ?");
+                    $checkSch->execute([$smissCode]);
+                    if ($checkSch->rowCount() > 0) {
+                        $upSch = $pdo->prepare("UPDATE schools SET school_name = ?, province = ?, district = ?, director_name = ?, status = ? WHERE smiss_code = ?");
+                        $upSch->execute([$schData['school_name'], $schData['province'], $schData['district'], $schData['director_name'], $schData['status'], $smissCode]);
+                    } else {
+                        $inSch = $pdo->prepare("INSERT INTO schools (smiss_code, school_name, province, district, director_name, status) VALUES (?, ?, ?, ?, ?, ?)");
+                        $inSch->execute([$smissCode, $schData['school_name'], $schData['province'], $schData['district'], $schData['director_name'], $schData['status']]);
+                    }
+                } catch (PDOException $ex) {}
+            }
         }
 
         // Create users if missing
@@ -388,6 +409,36 @@ try {
                     $colQuery = $pdo->query("SHOW COLUMNS FROM `users` LIKE '$col'");
                     if ($colQuery->rowCount() == 0) {
                         $pdo->exec("ALTER TABLE `users` ADD `$col` $definition");
+                    }
+                } catch (PDOException $ex) {}
+            }
+            
+            // Guarantee correct column lengths if the users table already existed with short lengths
+            try {
+                $pdo->exec("ALTER TABLE `users` MODIFY `password` VARCHAR(255) NOT NULL");
+                $pdo->exec("ALTER TABLE `users` MODIFY `username` VARCHAR(100) NOT NULL");
+                $pdo->exec("ALTER TABLE `users` MODIFY `role` VARCHAR(20) NOT NULL");
+                $pdo->exec("ALTER TABLE `users` MODIFY `status` VARCHAR(20) NOT NULL DEFAULT 'pending'");
+            } catch (PDOException $ex) {}
+
+            // Safe repair for demo users ensuring they are approved and password is reset to 'password123'
+            $repairPass = password_hash('password123', PASSWORD_DEFAULT);
+            $demoUsers = [
+                'superadmin' => ['role' => 'super_admin', 'smiss_code' => null, 'full_name' => 'ผู้ดูแลระบบสูงสุด (Super Admin)', 'phone' => '0800000000', 'assigned_grade' => null, 'assigned_room' => null],
+                'schooladmin' => ['role' => 'school_admin', 'smiss_code' => '10123456', 'full_name' => 'แอดมิน โรงเรียนกิตติศึกษาฯ', 'phone' => '0811111111', 'assigned_grade' => null, 'assigned_room' => null],
+                'teacher1' => ['role' => 'teacher', 'smiss_code' => '10123456', 'full_name' => 'คุณครูกิตติยา รักเรียน', 'phone' => '0822222222', 'assigned_grade' => 'ม.3', 'assigned_room' => '2']
+            ];
+            foreach ($demoUsers as $uName => $uData) {
+                try {
+                    $checkStmt = $pdo->prepare("SELECT id FROM users WHERE username = ?");
+                    $checkStmt->execute([$uName]);
+                    if ($checkStmt->rowCount() > 0) {
+                        $row = $checkStmt->fetch();
+                        $updateStmt = $pdo->prepare("UPDATE users SET password = ?, role = ?, status = 'approved', smiss_code = ?, full_name = ?, phone = ?, assigned_grade = ?, assigned_room = ? WHERE id = ?");
+                        $updateStmt->execute([$repairPass, $uData['role'], $uData['smiss_code'], $uData['full_name'], $uData['phone'], $uData['assigned_grade'], $uData['assigned_room'], $row['id']]);
+                    } else {
+                        $insertStmt = $pdo->prepare("INSERT INTO users (username, password, role, smiss_code, full_name, phone, status, assigned_grade, assigned_room) VALUES (?, ?, ?, ?, ?, ?, 'approved', ?, ?)");
+                        $insertStmt->execute([$uName, $repairPass, $uData['role'], $uData['smiss_code'], $uData['full_name'], $uData['phone'], $uData['assigned_grade'], $uData['assigned_room']]);
                     }
                 } catch (PDOException $ex) {}
             }
