@@ -327,6 +327,7 @@ try {
         } else {
             // Repair any missing columns in schools if schools table already exists!
             $schCols = [
+                'smiss_code' => "VARCHAR(8) NOT NULL",
                 'school_name' => "VARCHAR(255) NOT NULL",
                 'province' => "VARCHAR(100) NULL",
                 'district' => "VARCHAR(100) NULL",
@@ -338,7 +339,18 @@ try {
                 try {
                     $colQuery = $pdo->query("SHOW COLUMNS FROM `schools` LIKE '$col'");
                     if ($colQuery->rowCount() == 0) {
-                        $pdo->exec("ALTER TABLE `schools` ADD `$col` $definition");
+                        if ($col === 'smiss_code') {
+                            $pdo->exec("ALTER TABLE `schools` ADD `$col` $definition FIRST");
+                            // Safely add Primary Key if no other primary key exists
+                            try {
+                                $pkCheck = $pdo->query("SHOW KEYS FROM `schools` WHERE Key_name = 'PRIMARY'");
+                                if ($pkCheck->rowCount() == 0) {
+                                    $pdo->exec("ALTER TABLE `schools` ADD PRIMARY KEY (`smiss_code`)");
+                                }
+                            } catch (PDOException $exPk) {}
+                        } else {
+                            $pdo->exec("ALTER TABLE `schools` ADD `$col` $definition");
+                        }
                     }
                 } catch (PDOException $ex) {}
             }
