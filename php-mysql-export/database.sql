@@ -5,8 +5,8 @@
 -- Created on: June 2026
 -- --------------------------------------------------------
 
-CREATE DATABASE IF NOT EXISTS `student_visit_db` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE `student_visit_db`;
+CREATE DATABASE IF NOT EXISTS `schoolos_studentcare` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE `schoolos_studentcare`;
 
 -- 1. Students Table
 DROP TABLE IF EXISTS `students`;

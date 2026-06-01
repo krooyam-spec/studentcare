@@ -22,21 +22,28 @@ export default function PhpMySqlExport() {
  */
 
 define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_NAME', 'student_visit_db');
+define('DB_USER', 'schoolos_studentcare');
+define('DB_PASS', 'sjE9_zJzf7_O6plw');
+define('DB_NAME', 'schoolos_studentcare');
 
 try {
-    // 1. First connect to database server without selecting DB
-    $pdo = new PDO("mysql:host=" . DB_HOST . ";charset=utf8mb4", DB_USER, DB_PASS, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_EMULATE_PREPARES => false,
-    ]);
-
-    // 2. Create database if not exists
-    $pdo->exec("CREATE DATABASE IF NOT EXISTS \`" . DB_NAME . "\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-    $pdo->exec("USE \`" . DB_NAME . "\`");
+    // 1. Try to connect directly to the database
+    try {
+        $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4", DB_USER, DB_PASS, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+        ]);
+    } catch (PDOException $e) {
+        // 2. Fallback: Connect without dbname and create (XAMPP/Root)
+        $pdo = new PDO("mysql:host=" . DB_HOST . ";charset=utf8mb4", DB_USER, DB_PASS, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+        ]);
+        $pdo->exec("CREATE DATABASE IF NOT EXISTS \`" . DB_NAME . "\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+        $pdo->exec("USE \`" . DB_NAME . "\`");
+    }
 
     // 3. Auto-Installer: Check if table 'students' exists. Install schema if missing!
     $tableCheck = $pdo->query("SHOW TABLES LIKE 'students'");
@@ -55,8 +62,8 @@ try {
 -- Collation: utf8mb4_unicode_ci
 -- --------------------------------------------------------
 
-CREATE DATABASE IF NOT EXISTS \`student_visit_db\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE \`student_visit_db\`;
+CREATE DATABASE IF NOT EXISTS \`schoolos_studentcare\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE \`schoolos_studentcare\`;
 
 -- 1. Students Table
 CREATE TABLE \`students\` (
