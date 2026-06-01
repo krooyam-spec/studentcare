@@ -324,6 +324,24 @@ try {
                 ('10123458', 'โรงเรียนนครสวรรค์พิทยาคม', 'นครสวรรค์', 'เมือง', 'นายสมคิด ดีเลิศ', 'approved'),
                 ('10123459', 'โรงเรียนบ้านท่าลาดวิทยา', 'นครสวรรค์', 'ท่าตะโก', 'นายวินัย ชัยประเสริฐ', 'pending');
             ");
+        } else {
+            // Repair any missing columns in schools if schools table already exists!
+            $schCols = [
+                'school_name' => "VARCHAR(255) NOT NULL",
+                'province' => "VARCHAR(100) NULL",
+                'district' => "VARCHAR(100) NULL",
+                'director_name' => "VARCHAR(155) NULL",
+                'status' => "VARCHAR(20) NOT NULL DEFAULT 'pending'",
+                'created_at' => "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            ];
+            foreach ($schCols as $col => $definition) {
+                try {
+                    $colQuery = $pdo->query("SHOW COLUMNS FROM `schools` LIKE '$col'");
+                    if ($colQuery->rowCount() == 0) {
+                        $pdo->exec("ALTER TABLE `schools` ADD `$col` $definition");
+                    }
+                } catch (PDOException $ex) {}
+            }
         }
 
         // Create users if missing
@@ -351,6 +369,28 @@ try {
             $stmtUser->execute(['superadmin', $superAdminPass, 'super_admin', null, 'ผู้ดูแลระบบสูงสุด (Super Admin)', '0800000000', 'approved', null, null]);
             $stmtUser->execute(['schooladmin', $schoolAdminPass, 'school_admin', '10123456', 'แอดมิน โรงเรียนกิตติศึกษาฯ', '0811111111', 'approved', null, null]);
             $stmtUser->execute(['teacher1', $teacherPass, 'teacher', '10123456', 'คุณครูกิตติยา รักเรียน', '0822222222', 'approved', 'ม.3', '2']);
+        } else {
+            // Repair any missing columns in users if users table already exists!
+            $usrCols = [
+                'username' => "VARCHAR(100) NOT NULL",
+                'password' => "VARCHAR(255) NOT NULL",
+                'role' => "VARCHAR(20) NOT NULL",
+                'smiss_code' => "VARCHAR(8) NULL",
+                'full_name' => "VARCHAR(150) NOT NULL",
+                'phone' => "VARCHAR(30) NULL",
+                'status' => "VARCHAR(20) NOT NULL DEFAULT 'pending'",
+                'assigned_grade' => "VARCHAR(30) NULL",
+                'assigned_room' => "VARCHAR(10) NULL",
+                'created_at' => "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            ];
+            foreach ($usrCols as $col => $definition) {
+                try {
+                    $colQuery = $pdo->query("SHOW COLUMNS FROM `users` LIKE '$col'");
+                    if ($colQuery->rowCount() == 0) {
+                        $pdo->exec("ALTER TABLE `users` ADD `$col` $definition");
+                    }
+                } catch (PDOException $ex) {}
+            }
         }
 
         // Check if visit_records table is missing
