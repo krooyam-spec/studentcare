@@ -1,0 +1,6 @@
+# ----------------------------------------------------------------------
+# Web Server Configuration for Thai School Student Visit System
+# This ensures that index.php has priority over index.html
+# ----------------------------------------------------------------------
+
+DirectoryIndex index.php index.html

@@ -177,9 +177,9 @@ CREATE TABLE \`students\` (
                   วิธีรวดเร็วที่สุด: ดาวน์โหลดโฟลเดอร์สำเร็จรูปผ่านโปรแกรม
                 </h4>
                 <p>
-                  ผมได้ทำการเขียนไฟล์จริงทั้งหมดลงในไดเรกทอรีโครงการ เรียกว่าโฟลเดอร์ <code>/php-mysql-export/</code> ในระบบ 
+                  ผมได้ทำการย้ายไฟล์จริงทั้งหมดมาไว้ที่ <strong>โฟลเดอร์หลักนอกสุด (Root)</strong> ของเซิร์ฟเวอร์เรียบร้อยแล้วครับ! 
                   เพียงแค่คุณคลิกเลือกเมนู <strong>"Export ZIP"</strong> หรือ <strong>"Export to GitHub"</strong> ที่เมนูด้านบนขวาของ Google AI Studio 
-                  รวบรวมไฟล์ PHP ตระกูลนี้ทั้งหมดจะถูกรวมเข้าไปอยู่ในคอมพิวเตอร์ของคุณทันทีโดยไม่ต้องทำการคัดลอกทีละหน้าจอครับ!
+                  คุณก็นำทุกไฟล์ในระบบไปอัปโหลดขึ้นเซิร์ฟเวอร์จริงได้ทันที โดยไม่ต้องแก้ไขจัดเรียงโฟลเดอร์ยุ่งยากอีกต่อไปครับ!
                 </p>
               </div>
 
@@ -279,10 +279,10 @@ CREATE TABLE \`students\` (
                 </p>
               </div>
               <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-500 font-bold">เพื่อความปลอดภัย แนะนำให้ดาวน์โหลดไฟล์สมบูรณ์ผ่านปุ่ม Export ZIP ของ AI Studio ด้านบนขวา</span>
+                <span className="text-slate-500 font-bold">เพื่อความสะดวกและมั่นใจ แนะนำให้ดาวน์โหลดไฟล์ทั้งหมดผ่านปุ่ม Export ZIP ของ AI Studio ด้านบนขวา</span>
                 <span className="inline-flex items-center gap-1 bg-indigo-50 border px-3 py-1 text-slate-700 font-bold rounded-lg text-[10px]">
                   <Terminal className="w-3.5 h-3.5 text-indigo-600" />
-                  ไฟล์นี้บรรจุอยู่ภายใต้ /php-mysql-export/index.php แล้ว
+                  ไฟล์นี้บรรจุอยู่ภายใต้ /index.php (โฟลเดอร์นอกสุด) แล้ว
                 </span>
               </div>
             </div>
