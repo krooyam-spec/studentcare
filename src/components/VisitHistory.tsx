@@ -107,7 +107,7 @@ export default function VisitHistory({ records, students, onImportData, onExport
                 แบบบันทึกการเยี่ยมบ้านนักเรียน (ระดับ สพฐ. นร. 01 / กสศ.)
               </h1>
               <p className="text-[10px] sm:text-[11px] font-bold text-slate-600">
-                โรงเรียนบ้านจันทน์หอมตาเสก สำนักงานเขตพื้นที่การศึกษาประถมศึกษา
+                โรงเรียนบ้านหนองหว้า สำนักงานเขตพื้นที่การศึกษาประถมศึกษาบุรีรัมย์ เขต 3
               </p>
               <p className="text-[9px] text-slate-500">
                 ภาคเรียนที่ {activePrintRecord.semester || '1'} ปีการศึกษา {activePrintRecord.schoolYear || '2569'}

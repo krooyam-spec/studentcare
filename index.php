@@ -280,9 +280,9 @@ if ($userId && $userRole === 'school_admin') {
                     $nk = ($mapping['nickname'] !== -1 && isset($row[$mapping['nickname']])) ? trim($row[$mapping['nickname']]) : 'กอล์ฟ';
                     $gd = ($mapping['gender'] !== -1 && isset($row[$mapping['gender']])) ? trim($row[$mapping['gender']]) : 'ชาย';
                     $bd = ($mapping['birth_date'] !== -1 && isset($row[$mapping['birth_date']])) ? trim($row[$mapping['birth_date']]) : '2554-04-12';
-                    $gr = ($mapping['grade'] !== -1 && isset($row[$mapping['grade']])) ? trim($row[$mapping['grade']]) : 'ม.3';
-                    $rm = ($mapping['room'] !== -1 && isset($row[$mapping['room']])) ? trim($row[$mapping['room']]) : '2';
-                    $adr = ($mapping['address'] !== -1 && isset($row[$mapping['address']])) ? trim($row[$mapping['address']]) : 'ต.ห้วยชัน อ.เมือง จ.นครสวรรค์';
+                    $gr = ($mapping['grade'] !== -1 && isset($row[$mapping['grade']])) ? trim($row[$mapping['grade']]) : 'ป.4';
+                    $rm = ($mapping['room'] !== -1 && isset($row[$mapping['room']])) ? trim($row[$mapping['room']]) : '1';
+                    $adr = ($mapping['address'] !== -1 && isset($row[$mapping['address']])) ? trim($row[$mapping['address']]) : 'ต.หนองกี่ อ.หนองกี่ จ.บุรีรัมย์';
                     $p_nm = ($mapping['parent_name'] !== -1 && isset($row[$mapping['parent_name']])) ? trim($row[$mapping['parent_name']]) : 'สมคิด มั่นคง';
                     $p_ph = ($mapping['parent_phone'] !== -1 && isset($row[$mapping['parent_phone']])) ? trim($row[$mapping['parent_phone']]) : '0812345678';
                     
@@ -892,7 +892,7 @@ if (isset($_GET['msg'])) {
                     <?php if ($userRole === 'super_admin'): ?>
                         (ระบบดูแลศูนย์กลางกลุ่มโรงเรียนทั้งหมด)
                     <?php else: ?>
-                        (โรงเรียน<?= htmlspecialchars($currentSchool ? $currentSchool['school_name'] : 'ปันธรรมศึกษา') ?>)
+                        (โรงเรียน<?= htmlspecialchars($currentSchool ? $currentSchool['school_name'] : 'โรงเรียนบ้านหนองหว้า') ?>)
                     <?php endif; ?>
                 </h1>
                 <p class="text-[10px] text-slate-400 mt-0.5 font-bold flex items-center gap-1.5">
@@ -931,19 +931,11 @@ if (isset($_GET['msg'])) {
                 <?php if ($userRole === 'super_admin'): ?>
                     <a href="index.php?page=super_dashboard" class="w-full flex items-center gap-3 p-3 text-xs font-semibold rounded-xl text-left transition <?= $page === 'super_dashboard' ? 'bg-slate-850 text-white shadow-md' : 'text-slate-600 hover:bg-white/60' ?>">
                         <i data-lucide="layout-dashboard" class="w-4 h-4 text-emerald-400"></i>
-                        สถิติแผงควบคุมหลัก
+                        แผงควบคุมหลัก
                     </a>
                     <a href="index.php?page=schools_list" class="w-full flex items-center gap-3 p-3 text-xs font-semibold rounded-xl text-left transition <?= $page === 'schools_list' ? 'bg-slate-850 text-white shadow-md' : 'text-slate-600 hover:bg-white/60' ?>">
                         <i data-lucide="building-2" class="w-4 h-4 text-emerald-400"></i>
-                        อนุมัติโรงเรียน & แอดมิน
-                    </a>
-                    <a href="index.php?page=students" class="w-full flex items-center gap-3 p-3 text-xs font-semibold rounded-xl text-left transition <?= $page === 'students' ? 'bg-slate-850 text-white shadow-md' : 'text-slate-600 hover:bg-white/60' ?>">
-                        <i data-lucide="users" class="w-4 h-4 text-slate-400"></i>
-                        ทำเนียบนักเรียนทั้งหมด (<?= count($students) ?>)
-                    </a>
-                    <a href="index.php?page=records" class="w-full flex items-center gap-3 p-3 text-xs font-semibold rounded-xl text-left transition <?= $page === 'records' ? 'bg-slate-850 text-white shadow-md' : 'text-slate-650 hover:bg-white/60' ?>">
-                        <i data-lucide="book-open" class="w-4 h-4 text-slate-400"></i>
-                        รายงานเยี่ยมบ้านทั้งหมด (<?= count($records) ?>)
+                        การอนุมัติ
                     </a>
                 <?php else: ?>
                     <a href="index.php?page=dashboard" class="w-full flex items-center gap-3 p-3 text-xs font-semibold rounded-xl text-left transition <?= $page === 'dashboard' ? 'bg-slate-850 text-white shadow-md' : 'text-slate-600 hover:bg-white/60' ?>">
@@ -1704,7 +1696,7 @@ if (isset($_GET['msg'])) {
                                     </div>
                                     <div class="col-span-3">
                                         <label class="block mb-1 text-slate-650 font-bold">สภาพสถานที่เยี่ยมจริงพิกัดจริง</label>
-                                        <input type="text" name="home_address" required value="บ้านจันทร์หอมตะวันออก ต.ห้วยชัน อ.เมือง จ.นครสวรรค์ 60000" class="w-full border p-2 rounded-xl bg-white">
+                                        <input type="text" name="home_address" required value="บ้านหนองหว้า ต.หนองกี่ อ.หนองกี่ จ.บุรีรัมย์ 31210" class="w-full border p-2 rounded-xl bg-white">
                                     </div>
                                 </div>
                             </div>
@@ -1972,7 +1964,7 @@ if (isset($_GET['msg'])) {
                               แบบบันทึกการเยี่ยมบ้านนักเรียน (ระดับ สพฐ. นร. 01 / กสศ.)
                           </h1>
                           <p class="text-[10px] sm:text-[11px] font-bold text-slate-600">
-                              สังกัดสำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน (โรงเรียนระบบดูแลสพฐ. อัจฉริยะ)
+                              สังกัดสำนักงานเขตพื้นที่การศึกษาประถมศึกษาบุรีรัมย์ เขต 3 (โรงเรียนบ้านหนองหว้า อำเภอหนองกี่ จังหวัดบุรีรัมย์)
                           </p>
                           <p class="text-[9px] text-slate-500">
                               ภาคเรียนที่ <?= htmlspecialchars($rec['semester']) ?> ปีการศึกษา <?= htmlspecialchars($rec['school_year']) ?>

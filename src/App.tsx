@@ -226,7 +226,7 @@ export default function App() {
             <h1 className="text-base font-extrabold text-slate-850 flex items-center gap-1.5 selection:bg-transparent">
               ระบบสารสนเทศการเยี่ยมบ้านนักเรียนอัจฉริยะ (Student Visit AI)
             </h1>
-            <p className="text-[10px] text-slate-400 mt-0.5">โรงเรียนนวัตกรรมปัญญาคุณธรรม สังกัดสำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน (สพฐ.)</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">โรงเรียนบ้านหนองหว้า สังกัดสำนักงานเขตพื้นที่การศึกษาประถมศึกษาบุรีรัมย์ เขต 3</p>
           </div>
         </div>
 
@@ -236,7 +236,7 @@ export default function App() {
               {timeStr || "กำลังคำนวณปฏิทิน..."}
             </span>
             <span className="text-[10px] text-slate-400 block mt-1 font-semibold">
-              ระดับชั้นเรียนประจํา: ม.3/2 (ครูประจำชั้น: ครูสมศรี มีปัญญา)
+              ระดับชั้นเรียนประจํา: ป.4/1 (ครูปรจำชั้น: คุณครูกิตติยา รักเรียน)
             </span>
           </div>
         </div>

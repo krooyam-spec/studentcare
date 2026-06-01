@@ -208,25 +208,25 @@ try {
         // 1. Seed schools
         $pdo->exec("
             INSERT INTO `schools` (`smiss_code`, `school_name`, `province`, `district`, `director_name`, `status`) VALUES
-            ('10123456', 'โรงเรียนกิตติศึกษาประชานุสรณ์', 'นครสวรรค์', 'เมือง', 'นายณรงค์วิทย์ สุวรรณศรี', 'approved'),
-            ('10123457', 'โรงเรียนวัดห้วยชันวิทยา', 'นครสวรรค์', 'เมือง', 'นางสาวจารุภัทร จิตมั่นคง', 'approved'),
-            ('10123458', 'โรงเรียนนครสวรรค์พิทยาคม', 'นครสวรรค์', 'เมือง', 'นายสมคิด ดีเลิศ', 'approved'),
-            ('10123459', 'โรงเรียนบ้านท่าลาดวิทยา', 'นครสวรรค์', 'ท่าตะโก', 'นายวินัย ชัยประเสริฐ', 'pending');
+            ('10123456', 'โรงเรียนบ้านหนองหว้า', 'บุรีรัมย์', 'หนองกี่', 'นายธีระ เลิศศิริ', 'approved'),
+            ('10123457', 'โรงเรียนบ้านดอนยาว', 'บุรีรัมย์', 'หนองกี่', 'นางจรวย ศรีสุข', 'approved'),
+            ('10123458', 'โรงเรียนหนองกี่พิทยาคม', 'บุรีรัมย์', 'หนองกี่', 'นายมงคล ทรัพย์ดี', 'approved'),
+            ('10123459', 'โรงเรียนบ้านโคกสูง', 'บุรีรัมย์', 'หนองกี่', 'นายเกษม สุขสวัสดิ์', 'pending');
         ");
 
         // 2. Seed users
         $stmtUser = $pdo->prepare("INSERT INTO `users` (`username`, `password`, `role`, `smiss_code`, `full_name`, `phone`, `status`, `assigned_grade`, `assigned_room`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $stmtUser->execute(['superadmin', $superAdminPass, 'super_admin', null, 'ผู้ดูแลระบบสูงสุด (Super Admin)', '0800000000', 'approved', null, null]);
-        $stmtUser->execute(['schooladmin', $schoolAdminPass, 'school_admin', '10123456', 'แอดมิน โรงเรียนกิตติศึกษาฯ', '0811111111', 'approved', null, null]);
-        $stmtUser->execute(['teacher1', $teacherPass, 'teacher', '10123456', 'คุณครูกิตติยา รักเรียน', '0822222222', 'approved', 'ม.3', '2']);
+        $stmtUser->execute(['schooladmin', $schoolAdminPass, 'school_admin', '10123456', 'แอดมิน โรงเรียนบ้านหนองหว้า', '0811111111', 'approved', null, null]);
+        $stmtUser->execute(['teacher1', $teacherPass, 'teacher', '10123456', 'คุณครูกิตติยา รักเรียน', '0822222222', 'approved', 'ป.4', '1']);
 
         // 3. Seed students
         $pdo->exec("
             INSERT INTO `students` (`id`, `smiss_code`, `student_code`, `prefix`, `name`, `nickname`, `gender`, `birth_date`, `grade`, `room`, `citizen_id`, `address`, `parent_name`, `parent_relation`, `parent_phone`, `parent_job`, `latitude`, `longitude`, `visit_status`, `risk_level`) VALUES
-            ('STD001', '10123456', '10952', 'เด็กชาย', 'กิตติศักดิ์ มั่งคั่ง', 'กอล์ฟ', 'ชาย', '2011-04-12', 'ม.3', '2', '1100412589632', '12/4 หมู่ 2 ต.ห้วยชัน อ.เมือง จ.นครสวรรค์ 60000', 'สมยศ มั่งคั่ง', 'บิดา', '0812345678', 'รับจ้างทั่วไป', 15.702462, 100.137254, 'pending', 'not_assessed'),
-            ('STD002', '10123456', '10953', 'เด็กหญิง', 'จารุวรรณ ใยใส', 'จ๋า', 'หญิง', '2011-08-25', 'ม.3', '2', '1100412589633', '45 หมู่ 6 ต.ห้วยชัน อ.เมือง จ.นครสวรรค์ 60000', 'นภา ใยใส', 'มารดา', '0887654321', 'พนักงานโรงงาน', 15.708912, 100.125191, 'pending', 'not_assessed'),
-            ('STD003', '10123456', '10954', 'เด็กชาย', 'ธรรมนูญ ยืนยง', 'นิว', 'ชาย', '2011-01-05', 'ม.3', '2', '1100412589634', '88/1 ต.ห้วยชัน อ.เมือง จ.นครสวรรค์ 60000', 'สมควร ยืนยง', 'ปู่', '0894567890', 'เกษตรกร', 15.697154, 100.142981, 'pending', 'not_assessed'),
-            ('STD004', '10123456', '10955', 'เด็กหญิง', 'พิมพ์ชนก รอดพ้น', 'พลอย', 'หญิง', '2011-11-14', 'ม.3', '2', '1100412589635', '124 หมู่ 9 ต.ห้วยชัน อ.เมือง จ.นครสวรรค์ 60000', 'รินดา รอดพ้น', 'มารดา', '0823456789', 'ค้าขาย', 15.711202, 100.131422, 'pending', 'not_assessed');
+            ('STD001', '10123456', '10952', 'เด็กชาย', 'กิตติศักดิ์ มั่งคั่ง', 'กอล์ฟ', 'ชาย', '2016-04-12', 'ป.4', '1', '1100412589632', '12/4 หมู่ 2 ต.หนองกี่ อ.หนองกี่ จ.บุรีรัมย์ 31210', 'สมยศ มั่งคั่ง', 'บิดา', '0812345678', 'รับจ้างทั่วไป', 14.895123, 102.531245, 'pending', 'not_assessed'),
+            ('STD002', '10123456', '10953', 'เด็กหญิง', 'จารุวรรณ ใยใส', 'จ๋า', 'หญิง', '2014-08-25', 'ป.6', '1', '1100412589633', '45 หมู่ 6 ต.หนองกี่ อ.หนองกี่ จ.บุรีรัมย์ 31210', 'นภา ใยใส', 'มารดา', '0887654321', 'พนักงานโรงงาน', 14.898432, 102.525654, 'pending', 'not_assessed'),
+            ('STD003', '10123456', '10954', 'เด็กชาย', 'ธรรมนูญ ยืนยง', 'นิว', 'ชาย', '2012-01-05', 'ม.2', '1', '1100412589634', '88/1 ต.หนองกี่ อ.หนองกี่ จ.บุรีรัมย์ 31210', 'สมควร ยืนยง', 'ปู่', '0894567890', 'เกษตรกร', 14.892434, 102.541298, 'pending', 'not_assessed'),
+            ('STD004', '10123456', '10955', 'เด็กหญิง', 'พิมพ์ชนก รอดพ้น', 'พลอย', 'หญิง', '2011-11-14', 'ม.3', '1', '1100412589635', '124 หมู่ 9 ต.หนองกี่ อ.หนองกี่ จ.บุรีรัมย์ 31210', 'รินดา รอดพ้น', 'มารดา', '0823456789', 'ค้าขาย', 14.901121, 102.532356, 'pending', 'not_assessed');
 
             INSERT INTO `checklist` (`id`, `task`, `category`, `completed`) VALUES
             ('CHK1', 'จัดเตรียมแบบบันทึก นร.01 และนัดแนะผู้ปกครองล่วงหน้า', 'prepare', 1),
@@ -319,10 +319,10 @@ try {
 
             $pdo->exec("
                 INSERT INTO `schools` (`smiss_code`, `school_name`, `province`, `district`, `director_name`, `status`) VALUES
-                ('10123456', 'โรงเรียนกิตติศึกษาประชานุสรณ์', 'นครสวรรค์', 'เมือง', 'นายณรงค์วิทย์ สุวรรณศรี', 'approved'),
-                ('10123457', 'โรงเรียนวัดห้วยชันวิทยา', 'นครสวรรค์', 'เมือง', 'นางสาวจารุภัทร จิตมั่นคง', 'approved'),
-                ('10123458', 'โรงเรียนนครสวรรค์พิทยาคม', 'นครสวรรค์', 'เมือง', 'นายสมคิด ดีเลิศ', 'approved'),
-                ('10123459', 'โรงเรียนบ้านท่าลาดวิทยา', 'นครสวรรค์', 'ท่าตะโก', 'นายวินัย ชัยประเสริฐ', 'pending');
+                ('10123456', 'โรงเรียนบ้านหนองหว้า', 'บุรีรัมย์', 'หนองกี่', 'นายธีระ เลิศศิริ', 'approved'),
+                ('10123457', 'โรงเรียนบ้านดอนยาว', 'บุรีรัมย์', 'หนองกี่', 'นางจรวย ศรีสุข', 'approved'),
+                ('10123458', 'โรงเรียนหนองกี่พิทยาคม', 'บุรีรัมย์', 'หนองกี่', 'นายมงคล ทรัพย์ดี', 'approved'),
+                ('10123459', 'โรงเรียนบ้านโคกสูง', 'บุรีรัมย์', 'หนองกี่', 'นายเกษม สุขสวัสดิ์', 'pending');
             ");
         } else {
             // Repair any missing columns in schools if schools table already exists!
@@ -357,10 +357,10 @@ try {
 
             // Ensure sample school smiss codes exist and are approved so teacher registration can list them and function flawlessly
             $sampleSchools = [
-                '10123456' => ['school_name' => 'โรงเรียนกิตติศึกษาประชานุสรณ์', 'province' => 'นครสวรรค์', 'district' => 'เมือง', 'director_name' => 'นายณรงค์วิทย์ สุวรรณศรี', 'status' => 'approved'],
-                '10123457' => ['school_name' => 'โรงเรียนวัดห้วยชันวิทยา', 'province' => 'นครสวรรค์', 'district' => 'เมือง', 'director_name' => 'นางสาวจารุภัทร จิตมั่นคง', 'status' => 'approved'],
-                '10123458' => ['school_name' => 'โรงเรียนนครสวรรค์พิทยาคม', 'province' => 'นครสวรรค์', 'district' => 'เมือง', 'director_name' => 'นายสมคิด ดีเลิศ', 'status' => 'approved'],
-                '10123459' => ['school_name' => 'โรงเรียนบ้านท่าลาดวิทยา', 'province' => 'นครสวรรค์', 'district' => 'ท่าตะโก', 'director_name' => 'นายวินัย ชัยประเสริฐ', 'status' => 'pending']
+                '10123456' => ['school_name' => 'โรงเรียนบ้านหนองหว้า', 'province' => 'บุรีรัมย์', 'district' => 'หนองกี่', 'director_name' => 'นายธีระ เลิศศิริ', 'status' => 'approved'],
+                '10123457' => ['school_name' => 'โรงเรียนบ้านดอนยาว', 'province' => 'บุรีรัมย์', 'district' => 'หนองกี่', 'director_name' => 'นางจรวย ศรีสุข', 'status' => 'approved'],
+                '10123458' => ['school_name' => 'โรงเรียนหนองกี่พิทยาคม', 'province' => 'บุรีรัมย์', 'district' => 'หนองกี่', 'director_name' => 'นายมงคล ทรัพย์ดี', 'status' => 'approved'],
+                '10123459' => ['school_name' => 'โรงเรียนบ้านโคกสูง', 'province' => 'บุรีรัมย์', 'district' => 'หนองกี่', 'director_name' => 'นายเกษม สุขสวัสดิ์', 'status' => 'pending']
             ];
             foreach ($sampleSchools as $smissCode => $schData) {
                 try {
@@ -437,8 +437,8 @@ try {
             $repairPass = password_hash('password123', PASSWORD_DEFAULT);
             $demoUsers = [
                 'superadmin' => ['role' => 'super_admin', 'smiss_code' => null, 'full_name' => 'ผู้ดูแลระบบสูงสุด (Super Admin)', 'phone' => '0800000000', 'assigned_grade' => null, 'assigned_room' => null],
-                'schooladmin' => ['role' => 'school_admin', 'smiss_code' => '10123456', 'full_name' => 'แอดมิน โรงเรียนกิตติศึกษาฯ', 'phone' => '0811111111', 'assigned_grade' => null, 'assigned_room' => null],
-                'teacher1' => ['role' => 'teacher', 'smiss_code' => '10123456', 'full_name' => 'คุณครูกิตติยา รักเรียน', 'phone' => '0822222222', 'assigned_grade' => 'ม.3', 'assigned_room' => '2']
+                'schooladmin' => ['role' => 'school_admin', 'smiss_code' => '10123456', 'full_name' => 'แอดมิน โรงเรียนบ้านหนองหว้า', 'phone' => '0811111111', 'assigned_grade' => null, 'assigned_room' => null],
+                'teacher1' => ['role' => 'teacher', 'smiss_code' => '10123456', 'full_name' => 'คุณครูกิตติยา รักเรียน', 'phone' => '0822222222', 'assigned_grade' => 'ป.4', 'assigned_room' => '1']
             ];
             foreach ($demoUsers as $uName => $uData) {
                 try {

@@ -371,7 +371,7 @@ export default function VisitForm({ students, initialStudentId = '', onSave, onC
           </div>
           <div>
             <h1 className="text-lg font-bold tracking-tight">บันทึกแบบฟอร์มคัดกรองเยี่ยมบ้านนักเรียน</h1>
-            <p className="text-[11px] text-slate-300">สอดคล้องกับระเบียบ สพฐ. / กสศ. โรงเรียนบ้านจันทน์หอมตาเสก</p>
+            <p className="text-[11px] text-slate-300">สอดคล้องกับระเบียบ สพฐ. / กสศ. โรงเรียนบ้านหนองหว้า</p>
           </div>
         </div>
         <div className="flex gap-2">
