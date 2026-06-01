@@ -1,4 +1,5 @@
 <?php
+session_start();
 /**
  * Standalone Intelligent Student Visit Management System (PHP + MySQL + Tailwind CSS)
  * นร.01 สพฐ. / กสศ. 5 ฝ่ายสมบูรณ์แบบ
@@ -14,6 +15,276 @@ require_once 'db_connect.php';
 $action = isset($_GET['action']) ? $_GET['action'] : '';
 $msg = '';
 $msgType = 'success';
+
+// Check authentication
+$userId = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : null;
+$username = isset($_SESSION['username']) ? $_SESSION['username'] : null;
+$userRole = isset($_SESSION['role']) ? $_SESSION['role'] : null;
+$userSmiss = isset($_SESSION['smiss_code']) ? $_SESSION['smiss_code'] : null;
+$userFullName = isset($_SESSION['full_name']) ? $_SESSION['full_name'] : null;
+$userGrade = isset($_SESSION['assigned_grade']) ? $_SESSION['assigned_grade'] : null;
+$userRoom = isset($_SESSION['assigned_room']) ? $_SESSION['assigned_room'] : null;
+
+// Handle Auth Actions
+if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $u = trim($_POST['username']);
+    $p = trim($_POST['password']);
+    
+    // Find user
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
+    $stmt->execute([$u]);
+    $userRow = $stmt->fetch();
+    
+    if ($userRow && password_verify($p, $userRow['password'])) {
+        if ($userRow['status'] !== 'approved') {
+            $msg = "บัญชีของท่านยังไม่ได้รับการอนุมัติจากผู้ดูแลระบบ กรุณารอการตรวจสอบ!";
+            $msgType = "error";
+        } else {
+            // Log in successfully
+            $_SESSION['user_id'] = $userRow['id'];
+            $_SESSION['username'] = $userRow['username'];
+            $_SESSION['role'] = $userRow['role'];
+            $_SESSION['smiss_code'] = $userRow['smiss_code'];
+            $_SESSION['full_name'] = $userRow['full_name'];
+            $_SESSION['assigned_grade'] = $userRow['assigned_grade'];
+            $_SESSION['assigned_room'] = $userRow['assigned_room'];
+            
+            header("Location: index.php");
+            exit;
+        }
+    } else {
+        $msg = "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง!";
+        $msgType = "error";
+    }
+}
+
+if ($action === 'logout') {
+    session_destroy();
+    header("Location: index.php");
+    exit;
+}
+
+if ($action === 'register_school' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    try {
+        $smiss = trim($_POST['smiss_code']);
+        $schName = trim($_POST['school_name']);
+        $prov = trim($_POST['province']);
+        $dist = trim($_POST['district']);
+        $dirName = trim($_POST['director_name']);
+        
+        $adminUser = trim($_POST['username']);
+        $adminPass = trim($_POST['password']);
+        $adminName = trim($_POST['full_name']);
+        $adminPhone = trim($_POST['phone']);
+        
+        if (strlen($smiss) !== 8 || !is_numeric($smiss)) {
+            throw new Exception("รหัส SMISS ต้องเป็นตัวเลข 8 หลักเท่านั้น!");
+        }
+        
+        // Check if school or user already exists
+        $chkSch = $pdo->prepare("SELECT * FROM schools WHERE smiss_code = ?");
+        $chkSch->execute([$smiss]);
+        if ($chkSch->rowCount() > 0) {
+            throw new Exception("รหัส SMISS โรงเรียนนี้มีอยู่ในระบบแล้ว!");
+        }
+        
+        $chkUsr = $pdo->prepare("SELECT * FROM users WHERE username = ?");
+        $chkUsr->execute([$adminUser]);
+        if ($chkUsr->rowCount() > 0) {
+            throw new Exception("ชื่อผู้ใช้งาน (Username) นี้ถูกใช้งานแล้ว!");
+        }
+        
+        $pdo->beginTransaction();
+        
+        // Add pending school
+        $stmtS = $pdo->prepare("INSERT INTO schools (smiss_code, school_name, province, district, director_name, status) VALUES (?, ?, ?, ?, ?, 'pending')");
+        $stmtS->execute([$smiss, $schName, $prov, $dist, $dirName]);
+        
+        // Add pending admin user for this school
+        $hashed = password_hash($adminPass, PASSWORD_DEFAULT);
+        $stmtU = $pdo->prepare("INSERT INTO users (username, password, role, smiss_code, full_name, phone, status) VALUES (?, ?, 'school_admin', ?, ?, ?, 'pending')");
+        $stmtU->execute([$adminUser, $hashed, $smiss, $adminName, $adminPhone]);
+        
+        $pdo->commit();
+        $msg = "ลงทะเบียนขอเปิดใช้งานสิทธิ์โรงเรียนสำเร็จ! กรุณารอผู้ดูแลระบบสูงสุด (Super Admin) อนุมัติการเปิดใช้งานเพื่อเริ่มเดินทาง!";
+        $msgType = "success";
+        header("Location: index.php?msg=" . urlencode($msg));
+        exit;
+    } catch (Exception $ex) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        $msg = "ลงทะเบียนเข้าใช้งานล้มเหลว: " . $ex->getMessage();
+        $msgType = "error";
+    }
+}
+
+if ($action === 'register_teacher' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    try {
+        $smiss = trim($_POST['smiss_code']);
+        $tUser = trim($_POST['username']);
+        $tPass = trim($_POST['password']);
+        $tName = trim($_POST['full_name']);
+        $tPhone = trim($_POST['phone']);
+        $tGrade = trim($_POST['assigned_grade']);
+        $tRoom = trim($_POST['assigned_room']);
+        
+        // Check if username already exists
+        $chkUsr = $pdo->prepare("SELECT * FROM users WHERE username = ?");
+        $chkUsr->execute([$tUser]);
+        if ($chkUsr->rowCount() > 0) {
+            throw new Exception("ชื่อผู้ใช้งานนี้ถูกใช้งานแล้ว!");
+        }
+        
+        // Insert pending teacher
+        $hashed = password_hash($tPass, PASSWORD_DEFAULT);
+        $stmtU = $pdo->prepare("INSERT INTO users (username, password, role, smiss_code, full_name, phone, status, assigned_grade, assigned_room) VALUES (?, ?, 'teacher', ?, ?, ?, 'pending', ?, ?)");
+        $stmtU->execute([$tUser, $hashed, $smiss, $tName, $tPhone, $tGrade, $tRoom]);
+        
+        $msg = "ส่งคำขอลงทะเบียนคุณครูเรียบร้อยแล้ว! กรุณาแจ้งผู้ควบคุมระบบของโรงเรียนท่านให้อนุมัติเปิดสิทธิ์!";
+        $msgType = "success";
+        header("Location: index.php?msg=" . urlencode($msg));
+        exit;
+    } catch (Exception $ex) {
+        $msg = "ลงทะเบียนครูล้มเหลว: " . $ex->getMessage();
+        $msgType = "error";
+    }
+}
+
+// Super Admin approvals logic
+if ($userId && $userRole === 'super_admin') {
+    if ($action === 'approve_school' && isset($_GET['smiss_code'])) {
+        $smiss = $_GET['smiss_code'];
+        $pdo->prepare("UPDATE schools SET status = 'approved' WHERE smiss_code = ?")->execute([$smiss]);
+        // Also auto-approve the school_admin of that school
+        $pdo->prepare("UPDATE users SET status = 'approved' WHERE smiss_code = ? AND role = 'school_admin'")->execute([$smiss]);
+        header("Location: index.php?page=super_dashboard&msg=" . urlencode("อนุมัติเข้าใช้งานโรงเรียนและผู้ดูแลระบบโรงเรียนสำเร็จเรียบร้อย!"));
+        exit;
+    }
+    if ($action === 'reject_school' && isset($_GET['smiss_code'])) {
+        $smiss = $_GET['smiss_code'];
+        $pdo->prepare("DELETE FROM users WHERE smiss_code = ?")->execute([$smiss]);
+        $pdo->prepare("DELETE FROM schools WHERE smiss_code = ?")->execute([$smiss]);
+        header("Location: index.php?page=super_dashboard&msg=" . urlencode("ปฏิเสธคำขอเปิดใช้งานสมบูรณ์และลบข้อมูลสำเร็จ!"));
+        exit;
+    }
+}
+
+// School Admin approvals logic
+if ($userId && $userRole === 'school_admin') {
+    if ($action === 'approve_teacher' && isset($_GET['teacher_id'])) {
+        $tid = $_GET['teacher_id'];
+        $pdo->prepare("UPDATE users SET status = 'approved' WHERE id = ? AND smiss_code = ?")->execute([$tid, $userSmiss]);
+        header("Location: index.php?page=teachers_mgmt&msg=" . urlencode("อนุมัติเปิดใช้งานสิทธิ์บัญชีคุณครูที่ปรึกษาสำเร็จแล้ว!"));
+        exit;
+    }
+    if ($action === 'reject_teacher' && isset($_GET['teacher_id'])) {
+        $tid = $_GET['teacher_id'];
+        $pdo->prepare("DELETE FROM users WHERE id = ? AND smiss_code = ?")->execute([$tid, $userSmiss]);
+        header("Location: index.php?page=teachers_mgmt&msg=" . urlencode("ลบบัญชีและคำขอดังกล่าวเรียบร้อย!"));
+        exit;
+    }
+    if ($action === 'update_school_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $schName = $_POST['school_name'];
+        $prov = $_POST['province'];
+        $dist = $_POST['district'];
+        $dirName = $_POST['director_name'];
+        $pdo->prepare("UPDATE schools SET school_name = ?, province = ?, district = ?, director_name = ? WHERE smiss_code = ?")
+            ->execute([$schName, $prov, $dist, $dirName, $userSmiss]);
+        header("Location: index.php?page=school_settings&msg=" . urlencode("บันทึกการตั้งค่าข้อมูลโครงสร้างโรงเรียนสำเร็จ!"));
+        exit;
+    }
+    
+    // DMC Excel XML/CSV smart parser
+    if ($action === 'import_dmc' && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['dmc_file'])) {
+        try {
+            $file = $_FILES['dmc_file'];
+            if ($file['error'] !== UPLOAD_ERR_OK) {
+                throw new Exception("เกิดข้อผิดพลาดในการอัปโหลดไฟล์รหัส: " . $file['error']);
+            }
+            $content = file_get_contents($file['tmp_name']);
+            if (!mb_check_encoding($content, 'UTF-8')) {
+                $content = iconv('TIS-620', 'UTF-8//IGNORE', $content);
+            }
+            $lines = preg_split("/\r\n|\n|\r/", $content);
+            $parsedCount = 0;
+            if (!empty($lines)) {
+                $headerLine = array_shift($lines);
+                $headerData = str_getcsv($headerLine);
+                $mapping = [
+                    'student_code' => -1, 'citizen_id' => -1, 'prefix' => -1, 'name' => -1,
+                    'nickname' => -1, 'gender' => -1, 'birth_date' => -1, 'grade' => -1,
+                    'room' => -1, 'address' => -1, 'parent_name' => -1, 'parent_phone' => -1
+                ];
+                foreach ($headerData as $idx => $h) {
+                    $h = trim($h);
+                    if (preg_match('/รหัสประตัว|รหัสนักเรียน|student_code|รหัสประจำตัว/ui', $h)) $mapping['student_code'] = $idx;
+                    else if (preg_match('/เลขบัตรประชาชน|เลขบัตร|ประชาชน|citizen_id/ui', $h)) $mapping['citizen_id'] = $idx;
+                    else if (preg_match('/คำนำหน้า|prefix/ui', $h)) $mapping['prefix'] = $idx;
+                    else if (preg_match('/ชื่อ|นามสกุล|ชื่อ-นามสกุล|name/ui', $h)) $mapping['name'] = $idx;
+                    else if (preg_match('/ชื่อเล่น|nickname/ui', $h)) $mapping['nickname'] = $idx;
+                    else if (preg_match('/เพศ|gender/ui', $h)) $mapping['gender'] = $idx;
+                    else if (preg_match('/วันเกิด|birth/ui', $h)) $mapping['birth_date'] = $idx;
+                    else if (preg_match('/ระดับชั้น|ชั้น|grade/ui', $h)) $mapping['grade'] = $idx;
+                    else if (preg_match('/ห้อง|room/ui', $h)) $mapping['room'] = $idx;
+                    else if (preg_match('/ที่อยู่|address/ui', $h)) $mapping['address'] = $idx;
+                    else if (preg_match('/ผู้ปกครอง|parent_name/ui', $h)) $mapping['parent_name'] = $idx;
+                    else if (preg_match('/เบอร์โทร|โทรศัพท์|parent_phone/ui', $h)) $mapping['parent_phone'] = $idx;
+                }
+                
+                $stmtIns = $pdo->prepare("INSERT INTO students (
+                    id, smiss_code, student_code, prefix, name, nickname, gender, birth_date, grade, room, citizen_id, address,
+                    parent_name, parent_relation, parent_phone, parent_job, visit_status, risk_level
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'บิดา/มารดา', ?, 'รับจ้าง', 'pending', 'not_assessed')
+                ON DUPLICATE KEY UPDATE 
+                    prefix = VALUES(prefix), name = VALUES(name), nickname = VALUES(nickname), gender = VALUES(gender),
+                    grade = VALUES(grade), room = VALUES(room), citizen_id = VALUES(citizen_id), address = VALUES(address)");
+                
+                $pdo->beginTransaction();
+                foreach ($lines as $line) {
+                    $line = trim($line);
+                    if (empty($line)) continue;
+                    $row = str_getcsv($line);
+                    if (count($row) < 3) continue;
+                    
+                    $scode = ($mapping['student_code'] !== -1 && isset($row[$mapping['student_code']])) ? trim($row[$mapping['student_code']]) : rand(10000, 99999);
+                    $c_id = ($mapping['citizen_id'] !== -1 && isset($row[$mapping['citizen_id']])) ? trim($row[$mapping['citizen_id']]) : '';
+                    $pfx = ($mapping['prefix'] !== -1 && isset($row[$mapping['prefix']])) ? trim($row[$mapping['prefix']]) : 'เด็กชาย';
+                    $nm = ($mapping['name'] !== -1 && isset($row[$mapping['name']])) ? trim($row[$mapping['name']]) : '';
+                    if (empty($nm)) continue;
+                    
+                    $nk = ($mapping['nickname'] !== -1 && isset($row[$mapping['nickname']])) ? trim($row[$mapping['nickname']]) : 'กอล์ฟ';
+                    $gd = ($mapping['gender'] !== -1 && isset($row[$mapping['gender']])) ? trim($row[$mapping['gender']]) : 'ชาย';
+                    $bd = ($mapping['birth_date'] !== -1 && isset($row[$mapping['birth_date']])) ? trim($row[$mapping['birth_date']]) : '2554-04-12';
+                    $gr = ($mapping['grade'] !== -1 && isset($row[$mapping['grade']])) ? trim($row[$mapping['grade']]) : 'ม.3';
+                    $rm = ($mapping['room'] !== -1 && isset($row[$mapping['room']])) ? trim($row[$mapping['room']]) : '2';
+                    $adr = ($mapping['address'] !== -1 && isset($row[$mapping['address']])) ? trim($row[$mapping['address']]) : 'ต.ห้วยชัน อ.เมือง จ.นครสวรรค์';
+                    $p_nm = ($mapping['parent_name'] !== -1 && isset($row[$mapping['parent_name']])) ? trim($row[$mapping['parent_name']]) : 'สมคิด มั่นคง';
+                    $p_ph = ($mapping['parent_phone'] !== -1 && isset($row[$mapping['parent_phone']])) ? trim($row[$mapping['parent_phone']]) : '0812345678';
+                    
+                    // Split grade/room beautifully
+                    if (preg_match('/ม\.([0-9]+)\/([0-9]+)/u', $gr, $m)) {
+                        $gr = 'ม.' . $m[1];
+                        $rm = $m[2];
+                    }
+                    
+                    $sid = 'STD' . $scode . rand(10, 99);
+                    $stmtIns->execute([
+                        $sid, $userSmiss, $scode, $pfx, $nm, $nk, $gd, $bd, $gr, $rm, $c_id, $adr, $p_nm, $p_ph
+                    ]);
+                    $parsedCount++;
+                }
+                $pdo->commit();
+                header("Location: index.php?page=students&msg=" . urlencode("นำเข้าข้อมูลนักเรียนร่วมกับ DMC ของกลุ่มโรงเรียนสำเร็จทั้งหมด $parsedCount ราย!"));
+                exit;
+            }
+        } catch (Exception $ex) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $msg = "นำเข้าข้อมูลจาก DMC ล้มเหลว: " . $ex->getMessage();
+            $msgType = "error";
+        }
+    }
+}
 
 // Save Visit Record POST Action
 if ($action === 'save_visit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -63,12 +334,12 @@ if ($action === 'save_visit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $latitude = $_POST['latitude'] ? (double)$_POST['latitude'] : null;
         $longitude = $_POST['longitude'] ? (double)$_POST['longitude'] : null;
 
-        // Image files (Accept either Base64 string from client canvas/camera or uploaded file)
+        // Image files
         $student_image = $_POST['student_image_base64'] ?: null;
         $outside_image = $_POST['outside_image_base64'] ?: null;
         $inside_image = $_POST['inside_image_base64'] ?: null;
 
-        // Signatures (Base64 drawn on client canvas)
+        // Signatures
         $signature_student = $_POST['signature_student'] ?: null;
         $signature_parent = $_POST['signature_parent'] ?: null;
         $signature_teacher = $_POST['signature_teacher'] ?: null;
@@ -84,7 +355,6 @@ if ($action === 'save_visit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $manual_risk_assessment = $_POST['manual_risk_assessment'] ?: 'normal';
         $manual_action_notes = $_POST['manual_action_notes'] ?: '';
 
-        // Gemini AI Analysis Simulation / Mock responses (Client-assisted offline or manual)
         $ai_summary = "ผู้เรียนอาศัยในครัวเรือนสภาพโครงสร้างระดับ " . ($manual_risk_assessment === 'high' ? 'ทรุดโทรมเผชิญปัญหารายได้วิกฤต' : 'ปกติเฝ้าระวังตัวชี้วัดรายหัว') . " แนะนำช่วยเหลือทุน กสศ. เร่งด่วน";
         $ai_strengths = json_encode(["ผู้ปกครองร่วมมือพูดคุยสูง", "นักเรียนตั้งใจใฝ่เรียนรู้ดี"]);
         $ai_challenges = json_encode([$manual_risk_assessment === 'high' ? "ผนังสังกระสีและผุพัง" : "ค่าครองชีพไม่สัมพันธ์รายรับสัมพัทธ์"]);
@@ -93,7 +363,7 @@ if ($action === 'save_visit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Insert visit record
         $stmt = $pdo->prepare("INSERT INTO visit_records (
-            id, student_id, visited_date, semester, school_year, visitor_name, informant_name, informant_relation,
+            id, student_id, smiss_code, visited_date, semester, school_year, visitor_name, informant_name, informant_relation,
             family_status, living_with, guardian_name, guardian_relation, guardian_citizen_id, guardian_education,
             guardian_job, guardian_phone, state_welfare, total_members, house_ownership, monthly_rent, floor_material,
             wall_material, roof_material, has_toilet, farm_land, water_source, electricity, vehicles, travel_method,
@@ -103,11 +373,11 @@ if ($action === 'save_visit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             manual_risk_assessment, manual_action_notes, ai_summary, ai_strengths, ai_challenges, ai_risk_level, ai_action_plan
         ) VALUES (
             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
         )");
 
         $stmt->execute([
-            $visit_id, $student_id, $visited_date, $semester, $school_year, $visitor_name, $informant_name, $informant_relation,
+            $visit_id, $student_id, $userSmiss, $visited_date, $semester, $school_year, $visitor_name, $informant_name, $informant_relation,
             $family_status, $living_with, $guardian_name, $guardian_relation, $guardian_citizen_id, $guardian_education,
             $guardian_job, $guardian_phone, $state_welfare, $total_members, $house_ownership, $monthly_rent, $floor_material,
             $wall_material, $roof_material, $has_toilet, $farm_land, $water_source, $electricity, $vehicles, $travel_method,
@@ -123,12 +393,7 @@ if ($action === 'save_visit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($_POST['members'] as $mem) {
                 if (!empty($mem['full_name'])) {
                     $stmtMem->execute([
-                        $visit_id,
-                        $mem['full_name'],
-                        $mem['relation'],
-                        $mem['citizen_id'],
-                        $mem['age'],
-                        (float)$mem['total_income']
+                        $visit_id, $mem['full_name'], $mem['relation'], $mem['citizen_id'], $mem['age'], (float)$mem['total_income']
                     ]);
                 }
             }
@@ -140,7 +405,6 @@ if ($action === 'save_visit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $pdo->commit();
         $msg = "บันทึกข้อมูลและออกรหัสรายงาน นร.01 รหัส $visit_id เรียบร้อยแล้ว!";
-        $msgType = 'success';
         header("Location: index.php?page=records&msg=" . urlencode($msg));
         exit;
     } catch (Exception $e) {
@@ -153,7 +417,7 @@ if ($action === 'save_visit' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 // Add Student POST Action
 if ($action === 'add_student' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        $new_id = 'STD' . rand(100, 999);
+        $new_id = 'STD' . rand(1000, 9999);
         $student_code = $_POST['student_code'];
         $prefix = $_POST['prefix'];
         $name = $_POST['name'];
@@ -170,12 +434,12 @@ if ($action === 'add_student' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $guid_job = $_POST['parent_job'];
 
         $stmt = $pdo->prepare("INSERT INTO students (
-            id, student_code, prefix, name, nickname, gender, birth_date, grade, room, citizen_id, address,
+            id, smiss_code, student_code, prefix, name, nickname, gender, birth_date, grade, room, citizen_id, address,
             parent_name, parent_relation, parent_phone, parent_job, visit_status, risk_level
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'not_assessed')");
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'not_assessed')");
 
         $stmt->execute([
-            $new_id, $student_code, $prefix, $name, $nickname, $gender, $birth_date, $grade, $room, $citizen_id, $address,
+            $new_id, $userSmiss, $student_code, $prefix, $name, $nickname, $gender, $birth_date, $grade, $room, $citizen_id, $address,
             $guid_name, $guid_rel, $guid_phone, $guid_job
         ]);
 
@@ -197,17 +461,89 @@ if ($action === 'toggle_checklist' && isset($_GET['id'])) {
     exit;
 }
 
-// Database Fetch All Students
-$students = $pdo->query("SELECT * FROM students ORDER BY student_code ASC")->fetchAll();
+// Global data fetching based on user role and state
+$students = [];
+$records = [];
+$schoolsList = [];
+$pendingSchools = [];
+$pendingUsers = [];
+$teachersList = [];
 
-// Database Fetch All Checklists
+if ($userId) {
+    if ($userRole === 'super_admin') {
+        $students = $pdo->query("SELECT s.*, sch.school_name FROM students s LEFT JOIN schools sch ON s.smiss_code = sch.smiss_code ORDER BY s.student_code ASC")->fetchAll();
+        $records = $pdo->query("SELECT r.*, s.name as student_name, s.nickname as student_nickname, s.student_code, sch.school_name 
+                                FROM visit_records r 
+                                JOIN students s ON r.student_id = s.id 
+                                LEFT JOIN schools sch ON r.smiss_code = sch.smiss_code 
+                                ORDER BY r.created_at DESC")->fetchAll();
+        $schoolsList = $pdo->query("SELECT * FROM schools ORDER BY smiss_code ASC")->fetchAll();
+        $pendingSchools = $pdo->query("SELECT * FROM schools WHERE status = 'pending' ORDER BY created_at DESC")->fetchAll();
+        $pendingUsers = $pdo->query("SELECT u.*, sch.school_name FROM users u JOIN schools sch ON u.smiss_code = sch.smiss_code WHERE u.status = 'pending' ORDER BY u.created_at DESC")->fetchAll();
+    } elseif ($userRole === 'school_admin') {
+        $stmtStr = $pdo->prepare("SELECT * FROM students WHERE smiss_code = ? ORDER BY student_code ASC");
+        $stmtStr->execute([$userSmiss]);
+        $students = $stmtStr->fetchAll();
+        
+        $stmtRec = $pdo->prepare("SELECT r.*, s.name as student_name, s.nickname as student_nickname, s.student_code 
+                                  FROM visit_records r 
+                                  JOIN students s ON r.student_id = s.id 
+                                  WHERE r.smiss_code = ? 
+                                  ORDER BY r.created_at DESC");
+        $stmtRec->execute([$userSmiss]);
+        $records = $stmtRec->fetchAll();
+        
+        $stmtT = $pdo->prepare("SELECT * FROM users WHERE smiss_code = ? AND role = 'teacher' ORDER BY status ASC, created_at DESC");
+        $stmtT->execute([$userSmiss]);
+        $teachersList = $stmtT->fetchAll();
+    } elseif ($userRole === 'teacher') {
+        $stmtStr = $pdo->prepare("SELECT * FROM students WHERE smiss_code = ? AND grade = ? AND room = ? ORDER BY student_code ASC");
+        $stmtStr->execute([$userSmiss, $userGrade, $userRoom]);
+        $students = $stmtStr->fetchAll();
+        
+        $stmtRec = $pdo->prepare("SELECT r.*, s.name as student_name, s.nickname as student_nickname, s.student_code 
+                                  FROM visit_records r 
+                                  JOIN students s ON r.student_id = s.id 
+                                  WHERE r.smiss_code = ? AND s.grade = ? AND s.room = ? 
+                                  ORDER BY r.created_at DESC");
+        $stmtRec->execute([$userSmiss, $userGrade, $userRoom]);
+        $records = $stmtRec->fetchAll();
+    }
+}
+
+// Fetch all approved schools for teacher signup selector
+$allApprovedSchools = $pdo->query("SELECT * FROM schools WHERE status = 'approved' ORDER BY school_name ASC")->fetchAll();
+
+// Database Fetch All Checklists (global task markers)
 $checklists = $pdo->query("SELECT * FROM checklist ORDER BY id ASC")->fetchAll();
 
-// Database Fetch All records with student join
-$records = $pdo->query("SELECT r.*, s.name as student_name, s.nickname as student_nickname, s.student_code FROM visit_records r JOIN students s ON r.student_id = s.id ORDER BY r.created_at DESC")->fetchAll();
+// Fetch current school info if logged in
+$currentSchool = null;
+if ($userSmiss) {
+    $stmtSch = $pdo->prepare("SELECT * FROM schools WHERE smiss_code = ?");
+    $stmtSch->execute([$userSmiss]);
+    $currentSchool = $stmtSch->fetch();
+}
 
 // Determine Page section
 $page = isset($_GET['page']) ? $_GET['page'] : 'dashboard';
+if ($page === 'dashboard' && $userRole === 'super_admin') {
+    $page = 'super_dashboard';
+}
+
+// Security guards for page access
+if (!$userId) {
+    // Force to login state
+    $page = 'login';
+} else {
+    if ($page === 'super_dashboard' && $userRole !== 'super_admin') { $page = 'dashboard'; }
+    if ($page === 'schools_list' && $userRole !== 'super_admin') { $page = 'dashboard'; }
+    if ($page === 'teachers_mgmt' && $userRole !== 'school_admin') { $page = 'dashboard'; }
+    if ($page === 'school_settings' && $userRole !== 'school_admin') { $page = 'dashboard'; }
+    if ($page === 'visit-form' && $userRole !== 'teacher') { $page = 'students'; }
+    if ($page === 'checklist' && $userRole === 'super_admin') { $page = 'super_dashboard'; }
+}
+
 if (isset($_GET['msg'])) {
     $msg = $_GET['msg'];
     $msgType = 'success';
@@ -269,28 +605,275 @@ if (isset($_GET['msg'])) {
         }
     </style>
 </head>
-<body class="bg-[#f5f8fa] text-slate-800 min-h-screen flex flex-col font-sans select-none antialiased relative">
+<body class="bg-[#f8fafc] text-slate-800 min-h-screen flex flex-col font-sans select-none antialiased relative">
+
+    <!-- A. ANONYMOUS GUEST VISITOR PORTAL -->
+    <?php if ($page === 'login'): ?>
+    <div class="flex-1 flex flex-col items-center justify-center p-4 sm:p-8 bg-[#f1f5f9] relative" style="background-image: radial-gradient(circle at top right, rgba(16,185,129,0.06), transparent 50%), radial-gradient(circle at bottom left, rgba(79,70,229,0.06), transparent 50%)">
+        <div class="max-w-xl w-full space-y-6">
+            <!-- Header Brand logo -->
+            <div class="text-center space-y-2">
+                <div class="inline-flex items-center gap-2 bg-slate-900 text-white p-3.5 px-6 rounded-2xl font-extrabold text-xs tracking-widest shadow-xl">
+                    <span class="text-emerald-400">★</span> SCHOOLOS STUDENT CARE
+                </div>
+                <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">ระบบจัดสรรและคัดกรองเยี่ยมบ้านนักเรียนไทย</h1>
+                <p class="text-xs text-slate-400 font-bold max-w-sm mx-auto">ระบบเยี่ยมบ้านสัญจรปันน้ำใจ แบบบูรณาการ นร.01 คัดกรองรายครัวเรือนสำหรับกลุ่มโรงเรียน</p>
+            </div>
+
+            <!-- Global dynamic alert banner -->
+            <?php if (!empty($msg)): ?>
+                <div class="bg-indigo-50 border border-indigo-200 p-4 rounded-2xl flex items-center gap-2.5 text-xs font-bold text-indigo-900 shadow">
+                    <i data-lucide="info" class="w-4 h-4 text-indigo-700 shrink-0"></i>
+                    <span><?= htmlspecialchars($msg) ?></span>
+                </div>
+            <?php endif; ?>
+
+            <!-- Switch Tab control -->
+            <div class="bg-white border rounded-2xl p-1.5 flex gap-1 shadow-sm font-sans">
+                <button type="button" id="btn-tab-login" onclick="switchAuthTab('login')" class="flex-1 py-2 rounded-xl text-[11px] font-black transition bg-slate-900 text-white shadow-sm">
+                    <i data-lucide="log-in" class="w-3.5 h-3.5 inline-block mr-1"></i> เข้าใช้งานสัญจร
+                </button>
+                <button type="button" id="btn-tab-school" onclick="switchAuthTab('school')" class="flex-1 py-2 rounded-xl text-[11px] font-black text-slate-500 hover:bg-slate-100 transition">
+                    <i data-lucide="building-2" class="w-3.5 h-3.5 inline-block mr-1"></i> ขอเปิดสิทธิ์โรงเรียน
+                </button>
+                <button type="button" id="btn-tab-teacher" onclick="switchAuthTab('teacher')" class="flex-1 py-2 rounded-xl text-[11px] font-black text-slate-500 hover:bg-slate-100 transition">
+                    <i data-lucide="user-plus" class="w-3.5 h-3.5 inline-block mr-1"></i> สมัครครูที่ปรึกษา
+                </button>
+            </div>
+
+            <!-- Frame Card wrapper Container -->
+            <div class="bg-white border rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden font-sans">
+                
+                <!-- TAB A: SECURE LOGIN -->
+                <div id="auth-tab-login" class="space-y-6">
+                    <form action="index.php?action=login" method="POST" id="login-form" class="space-y-4 text-xs font-semibold">
+                        <div>
+                            <label class="block mb-1 text-slate-700 font-bold">ชื่อรหัสบัญชีผู้เข้าใช้งาน (Username) *</label>
+                            <input type="text" name="username" id="login-username" required placeholder="เช่น superadmin, schooladmin, teacher1" class="w-full border p-3 rounded-xl bg-slate-50 font-medium focus:ring-2 focus:ring-slate-900 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block mb-1 text-slate-700 font-bold">รหัสผ่านลับ (Password) *</label>
+                            <input type="password" name="password" id="login-password" required placeholder="กรอกรหัสผ่านประจำตัว" class="w-full border p-3 rounded-xl bg-slate-50 font-medium focus:ring-2 focus:ring-slate-900 focus:outline-none">
+                        </div>
+                        <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold py-3.5 rounded-xl transition shadow-lg text-xs tracking-wider">
+                            ยืนยันความปลอดภัยเพื่อก้าวเข้าสู่ระบบ
+                        </button>
+                    </form>
+
+                    <!-- QUICK DEMO LOGINS SHORTCUTS -->
+                    <div class="pt-4 border-t border-dashed">
+                        <span class="text-[9.5px] text-slate-400 font-black uppercase tracking-wider block mb-2.5 text-center">★ ทางลัดเข้าใช้งานบัญชีสาธิต (Quick Demo Login in 1-Click) ★</span>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <button type="button" onclick="quickLogin('superadmin', 'password123')" class="p-2.5 bg-slate-50 border hover:bg-emerald-50 hover:border-emerald-250 rounded-xl text-left transition duration-200">
+                                <span class="font-extrabold text-[10px] block text-slate-900">1. แอดมินจังหวัด</span>
+                                <span class="text-[9px] text-slate-500 block mt-0.5 font-bold">Super Admin</span>
+                            </button>
+                            <button type="button" onclick="quickLogin('schooladmin', 'password123')" class="p-2.5 bg-slate-50 border hover:bg-indigo-50 hover:border-indigo-200 rounded-xl text-left transition duration-200">
+                                <span class="font-extrabold text-[10px] block text-indigo-950">2. แอดมินโรงเรียน</span>
+                                <span class="text-[9px] text-slate-500 block mt-0.5 font-bold">School Admin</span>
+                            </button>
+                            <button type="button" onclick="quickLogin('teacher1', 'password123')" class="p-2.5 bg-slate-50 border hover:bg-emerald-50 hover:border-emerald-250 rounded-xl text-left transition duration-200">
+                                <span class="font-extrabold text-[10px] block text-emerald-950">3. ที่ปรึกษา ม.3/2</span>
+                                <span class="text-[9px] text-slate-500 block mt-0.5 font-bold">Teacher</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB B: REQUEST TO ADD SCHOOL -->
+                <div id="auth-tab-school" class="hidden space-y-4">
+                    <div class="bg-indigo-50 border border-indigo-150 p-3.5 rounded-xl text-[10px] font-bold text-indigo-950 leading-relaxed">
+                        ⚡ สพฐ. แนะนำใช้รหัส SMISS 8 หลักให้ถูกต้อง เพื่อให้ระบบระเบียนจำพิกัดละติจูดและแยกขอบเขตนักเรียนของท่านได้อย่างแม่นยำ
+                    </div>
+                    <form action="index.php?action=register_school" method="POST" class="space-y-3.5 text-xs font-semibold">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block mb-1 text-slate-700 font-bold">รหัส SMISS 8 หลัก *</label>
+                                <input type="text" name="smiss_code" required maxLength="8" placeholder="เช่น 10123459" class="w-full border p-2.5 rounded-xl bg-slate-50 font-bold">
+                            </div>
+                            <div>
+                                <label class="block mb-1 text-slate-700 font-bold">ชื่อสถาบันศึกษา/โรงเรียน *</label>
+                                <input type="text" name="school_name" required placeholder="โรงเรียนสี่คิ้วปันราษฎร์" class="w-full border p-2.5 rounded-xl bg-slate-50">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block mb-1 text-slate-700 font-bold">อำเภอ/เขต *</label>
+                                <input type="text" name="district" required placeholder="เมือง" class="w-full border p-2.5 rounded-xl bg-slate-50">
+                            </div>
+                            <div>
+                                <label class="block mb-1 text-slate-700 font-bold">จังหวัด *</label>
+                                <input type="text" name="province" required placeholder="นครราชสีมา" class="w-full border p-2.5 rounded-xl bg-slate-50">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block mb-1 text-slate-700 font-bold">ชื่อ-สกุล ผู้อำนวยการโรงเรียน_เพื่อเซ็นเยี่ยม *</label>
+                            <input type="text" name="director_name" required placeholder="นายกิตติคุณ มั่นสมหมาย" class="w-full border p-2.5 rounded-xl bg-slate-50">
+                        </div>
+                        
+                        <div class="pt-3 border-t border-dashed space-y-3">
+                            <span class="block text-[10px] text-indigo-900 font-bold uppercase tracking-wider">บัญชีดูแลโรงเรียนที่ต้องการขอสร้างใหม่ (School Admin Account)</span>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block mb-1 text-slate-700 font-bold">ผู้ใช้ล็อกอิน (Username) *</label>
+                                    <input type="text" name="username" required placeholder="เช่น login_admin" class="w-full border p-2 rounded-xl bg-slate-50">
+                                </div>
+                                <div>
+                                    <label class="block mb-1 text-slate-700 font-bold">รหัสผ่านเข้าใช้ *</label>
+                                    <input type="password" name="password" required placeholder="กรอกรหัสผ่านลับ" class="w-full border p-2 rounded-xl bg-slate-50">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block mb-1 text-slate-700 font-bold">ชื่อจริงของผู้ประสานงานหลัก *</label>
+                                    <input type="text" name="full_name" required placeholder="อาจารย์สมศรี พุทธรักษา" class="w-full border p-2 rounded-xl bg-slate-50">
+                                </div>
+                                <div>
+                                    <label class="block mb-1 text-slate-700 font-bold">เบอร์โทรศัพท์มือถือที่สามารถติดต่อ *</label>
+                                    <input type="text" name="phone" required placeholder="08XXXXXXXX" class="w-full border p-2 rounded-xl bg-slate-50">
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold py-3 rounded-xl transition shadow">
+                            ยืนยันส่งคำร้องและเปิดสโมสรโรงเรียน
+                        </button>
+                    </form>
+                </div>
+
+                <!-- TAB C: NEW TEACHER INDUCTION LIST -->
+                <div id="auth-tab-teacher" class="hidden space-y-4">
+                    <?php if (count($allApprovedSchools) === 0): ?>
+                        <div class="bg-amber-50 border border-amber-200 p-6 rounded-2xl text-center text-xs font-bold text-amber-900 space-y-2">
+                            <span class="text-2xl block">⚠</span>
+                            <p>ขณะนี้ไม่มีข้อมูลโรงเรียนใดๆ เครือข่ายที่พร้อมให้บริการเปิดสมัครครูในระบบขณะนี้!</p>
+                            <p class="text-[10px] text-slate-400 font-normal">กรุณาเข้าใช้งาน Super Admin เพื่ออนุมัติโรงเรียนเครือข่ายก่อน</p>
+                        </div>
+                    <?php else: ?>
+                        <form action="index.php?action=register_teacher" method="POST" class="space-y-3.5 text-xs font-semibold">
+                            <div>
+                                <label class="block mb-1 text-slate-700 font-bold">เลือกโรงเรียนร่วมต้นสังกัดท่าน *</label>
+                                <select name="smiss_code" required class="w-full border p-2.5 rounded-xl bg-slate-50 text-slate-800 font-bold">
+                                    <?php foreach ($allApprovedSchools as $sch): ?>
+                                        <option value="<?= $sch['smiss_code'] ?>"><?= htmlspecialchars($sch['school_name']) ?> (<?= htmlspecialchars($sch['smiss_code']) ?>)</option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block mb-1 text-slate-700 font-bold">รหัสเรียกชื่อคุณครู (Username) *</label>
+                                    <input type="text" name="username" required placeholder="เช่น krupreecha" class="w-full border p-2 rounded-xl bg-slate-50">
+                                </div>
+                                <div>
+                                    <label class="block mb-1 text-slate-700 font-bold">สร้างรหัสผ่านลับ *</label>
+                                    <input type="password" name="password" required placeholder="กรอกรหัสประจำครู" class="w-full border p-2 rounded-xl bg-slate-50">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block mb-1 text-slate-700 font-bold">ชื่อจริงของตัวคุณครูผู้ประเมิน *</label>
+                                    <input type="text" name="full_name" required placeholder="คุณครูปรีชา ปัญญาสว่าง" class="w-full border p-2 rounded-xl bg-slate-50">
+                                </div>
+                                <div>
+                                    <label class="block mb-1 text-slate-700 font-bold">เบอร์โทรติดต่อคุณครู *</label>
+                                    <input type="text" name="phone" required placeholder="08XXXXXXXX" class="w-full border p-2 rounded-xl bg-slate-50">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block mb-1 text-slate-700 font-bold">ระดับชั้นศึกษาที่ปรึกษา (เช่น ม.1, ม.2) *</label>
+                                    <input type="text" name="assigned_grade" required placeholder="ม.3" class="w-full border p-2 rounded-xl bg-slate-50 text-center font-bold">
+                                </div>
+                                <div>
+                                    <label class="block mb-1 text-slate-700 font-bold">ประจำห้องเลขที (เช่น 1, 2) *</label>
+                                    <input type="text" name="assigned_room" required placeholder="2" class="w-full border p-2 rounded-xl bg-slate-50 text-center font-bold">
+                                </div>
+                            </div>
+                            <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold py-3.5 rounded-xl transition shadow">
+                                ส่งรายละเอียดเพื่อขออนุมัติใช้งาน
+                            </button>
+                        </form>
+                    <?php endif; ?>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function switchAuthTab(tabId) {
+            document.getElementById('auth-tab-login').classList.add('hidden');
+            document.getElementById('auth-tab-school').classList.add('hidden');
+            document.getElementById('auth-tab-teacher').classList.add('hidden');
+            
+            document.getElementById('btn-tab-login').className = "flex-1 py-2 rounded-xl text-[11px] font-black text-slate-500 hover:bg-slate-100 transition";
+            document.getElementById('btn-tab-school').className = "flex-1 py-2 rounded-xl text-[11px] font-black text-slate-500 hover:bg-slate-100 transition";
+            document.getElementById('btn-tab-teacher').className = "flex-1 py-2 rounded-xl text-[11px] font-black text-slate-500 hover:bg-slate-100 transition";
+            
+            if (tabId === 'login') {
+                document.getElementById('auth-tab-login').classList.remove('hidden');
+                document.getElementById('btn-tab-login').className = "flex-1 py-2 rounded-xl text-[11px] font-black transition bg-slate-900 text-white shadow-sm";
+            } else if (tabId === 'school') {
+                document.getElementById('auth-tab-school').classList.remove('hidden');
+                document.getElementById('btn-tab-school').className = "flex-1 py-2 rounded-xl text-[11px] font-black transition bg-slate-900 text-white shadow-sm";
+            } else if (tabId === 'teacher') {
+                document.getElementById('auth-tab-teacher').classList.remove('hidden');
+                document.getElementById('btn-tab-teacher').className = "flex-1 py-2 rounded-xl text-[11px] font-black transition bg-slate-900 text-white shadow-sm";
+            }
+        }
+        function quickLogin(u, p) {
+            document.getElementById('login-username').value = u;
+            document.getElementById('login-password').value = p;
+            document.getElementById('login-form').submit();
+        }
+    </script>
+    <footer class="bg-white/40 border-t py-4 text-center text-[10px] text-slate-400 font-semibold w-full mt-auto">
+        สัญจรปันน้ำใจ • พัฒนาระเบียบการบูรณาการข้อมูลเยี่ยมบ้านคัดกรองอัจฉริยะกลุ่มโรงเรียนสัญจร
+    </footer>
+
+    <!-- B. SIGNED-IN AUTHENTICATED WORKSPACES CONTAINER -->
+    <?php else: ?>
 
     <?php if ($page !== 'print-record'): ?>
     <!-- Top Banner header area (Only show if not in pure print view) -->
-    <header class="bg-white/40 backdrop-blur-xl border-b border-white/50 py-3.5 px-6 sm:px-10 flex flex-col md:flex-row md:items-center justify-between gap-3 print:hidden relative z-10 w-full">
+    <header class="bg-white/40 backdrop-blur-xl border-b border-white/50 py-3.5 px-6 sm:px-10 flex flex-col md:flex-row md:items-center justify-between gap-3 print:hidden relative z-10 w-full animate-fade">
         <div class="flex items-center gap-2.5">
-            <div class="bg-emerald-750 text-white rounded-xl p-2 font-bold text-sm tracking-widest shadow-md">
-                PHP / MySQL
+            <div class="bg-slate-900 text-white rounded-xl p-2.5 px-4 font-bold text-xs tracking-wider shadow-md">
+                SchoolOS Student Care
             </div>
             <div>
                 <h1 class="text-base font-extrabold text-slate-850 flex items-center gap-1.5 leading-tight">
-                    ระบบสารสนเทศเยี่ยมบ้านนักเรียนโรงเรียน (School Server PHP Package)
+                    ระบบสารสนเทศเยี่ยมบ้านนักเรียนกลุ่มโรงเรียน 
+                    <?php if ($userRole === 'super_admin'): ?>
+                        (ระบบดูแลศูนย์กลางกลุ่มโรงเรียนทั้งหมด)
+                    <?php else: ?>
+                        (โรงเรียน<?= htmlspecialchars($currentSchool ? $currentSchool['school_name'] : 'ปันธรรมศึกษา') ?>)
+                    <?php endif; ?>
                 </h1>
-                <p class="text-[10px] text-slate-400 mt-0.5 font-bold">ข้อมูลเชื่อมต่อตรงกับเซิร์ฟเวอร์ฐานข้อมูลโรงเรียน (localhost:3306 / php-mysql)</p>
+                <p class="text-[10px] text-slate-400 mt-0.5 font-bold flex items-center gap-1.5">
+                    <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                    เชื่อมต่อฐานข้อมูลระบบสัญจรผ่านเซิร์ฟเวอร์ MySQL บนระบบเครือข่ายเรียบร้อยดี
+                </p>
             </div>
         </div>
 
-        <div class="text-right flex items-center gap-2">
-            <div class="inline-flex gap-1.5 items-center bg-white/70 border px-3 py-1.5 rounded-full text-[10px] font-bold text-emerald-800">
-                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                MySQL Connected (Online)
+        <div class="flex items-center gap-3 bg-white/70 border border-slate-200/80 p-1.5 px-4 rounded-2xl shadow-sm text-xs print:hidden">
+            <div class="text-right">
+                <span class="block font-black text-slate-800 leading-none"><?= htmlspecialchars($userFullName) ?></span>
+                <span class="text-[9px] bg-slate-150 px-1.5 py-0.5 rounded text-slate-600 font-bold inline-block mt-1">
+                    ขอบข่าย: 
+                    <?php if ($userRole === 'super_admin'): ?>
+                        Super Admin ส่วนกลางจังหวัด
+                    <?php elseif ($userRole === 'school_admin'): ?>
+                        แอดมินประจำสถาบันศึกษา
+                    <?php else: ?>
+                        ครูประจำชั้น (ม.<?= htmlspecialchars($userGrade ?: '-') ?>/<?= htmlspecialchars($userRoom ?: '-') ?>)
+                    <?php endif; ?>
+                </span>
             </div>
+            <a href="index.php?action=logout" class="bg-rose-50 text-rose-700 hover:bg-rose-100 p-2 rounded-xl border border-rose-100 transition shadow-sm font-bold" title="ออกจากระบบ">
+                <i data-lucide="log-out" class="w-4 h-4"></i>
+            </a>
         </div>
     </header>
 
@@ -1559,5 +2142,6 @@ if (isset($_GET['msg'])) {
             return true;
         }
     </script>
+    <?php endif; ?>
 </body>
 </html>

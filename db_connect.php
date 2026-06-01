@@ -36,6 +36,8 @@ try {
         $pdo->exec("DROP TABLE IF EXISTS `household_members`");
         $pdo->exec("DROP TABLE IF EXISTS `visit_records`");
         $pdo->exec("DROP TABLE IF EXISTS `students`");
+        $pdo->exec("DROP TABLE IF EXISTS `users`");
+        $pdo->exec("DROP TABLE IF EXISTS `schools`");
         $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
         
         header("Location: index.php?msg=" . urlencode("ล้างและคืนค่าเริ่มต้นฐานข้อมูลสำเร็จเรียบร้อยแล้วระบบจะสร้างตารางใหม่ทันที!"));
@@ -47,8 +49,34 @@ try {
     if ($tableCheck->rowCount() == 0) {
         // Tables do not exist, run the setup commands
         $sqlSchema = "
+        CREATE TABLE IF NOT EXISTS `schools` (
+          `smiss_code` VARCHAR(8) NOT NULL,
+          `school_name` VARCHAR(255) NOT NULL,
+          `province` VARCHAR(100) NULL,
+          `district` VARCHAR(100) NULL,
+          `director_name` VARCHAR(155) NULL,
+          `status` VARCHAR(20) NOT NULL DEFAULT 'pending',
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (`smiss_code`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+        CREATE TABLE IF NOT EXISTS `users` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `username` VARCHAR(100) UNIQUE NOT NULL,
+          `password` VARCHAR(255) NOT NULL,
+          `role` VARCHAR(20) NOT NULL,
+          `smiss_code` VARCHAR(8) NULL,
+          `full_name` VARCHAR(150) NOT NULL,
+          `phone` VARCHAR(30) NULL,
+          `status` VARCHAR(20) NOT NULL DEFAULT 'pending',
+          `assigned_grade` VARCHAR(30) NULL,
+          `assigned_room` VARCHAR(10) NULL,
+          `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
         CREATE TABLE IF NOT EXISTS `students` (
           `id` VARCHAR(50) NOT NULL,
+          `smiss_code` VARCHAR(8) NULL,
           `student_code` VARCHAR(55) NULL,
           `prefix` VARCHAR(30) NULL,
           `name` VARCHAR(150) NOT NULL,
@@ -79,6 +107,7 @@ try {
         CREATE TABLE IF NOT EXISTS `visit_records` (
           `id` VARCHAR(50) NOT NULL,
           `student_id` VARCHAR(50) NOT NULL,
+          `smiss_code` VARCHAR(8) NULL,
           `visited_date` VARCHAR(50) NOT NULL,
           `semester` VARCHAR(10) NOT NULL DEFAULT '1',
           `school_year` VARCHAR(10) NOT NULL DEFAULT '2569',
@@ -172,12 +201,32 @@ try {
         $pdo->exec($sqlSchema);
 
         // Seed initial data
+        $superAdminPass = password_hash('password123', PASSWORD_DEFAULT);
+        $schoolAdminPass = password_hash('password123', PASSWORD_DEFAULT);
+        $teacherPass = password_hash('password123', PASSWORD_DEFAULT);
+
+        // 1. Seed schools
         $pdo->exec("
-            INSERT INTO `students` (`id`, `student_code`, `prefix`, `name`, `nickname`, `gender`, `birth_date`, `grade`, `room`, `citizen_id`, `address`, `parent_name`, `parent_relation`, `parent_phone`, `parent_job`, `latitude`, `longitude`, `visit_status`, `risk_level`) VALUES
-            ('STD001', '10952', 'เด็กชาย', 'กิตติศักดิ์ มั่งคั่ง', 'กอล์ฟ', 'ชาย', '2011-04-12', 'ม.3/2', '2', '1100412589632', '12/4 หมู่ 2 ต.ห้วยชัน อ.เมือง จ.นครสวรรค์ 60000', 'สมยศ มั่งคั่ง', 'บิดา', '0812345678', 'รับจ้างทั่วไป', 15.702462, 100.137254, 'pending', 'not_assessed'),
-            ('STD002', '10953', 'เด็กหญิง', 'จารุวรรณ ใยใส', 'จ๋า', 'หญิง', '2011-08-25', 'ม.3/2', '2', '1100412589633', '45 หมู่ 6 ต.ห้วยชัน อ.เมือง จ.นครสวรรค์ 60000', 'นภา ใยใส', 'มารดา', '0887654321', 'พนักงานโรงงาน', 15.708912, 100.125191, 'pending', 'not_assessed'),
-            ('STD003', '10954', 'เด็กชาย', 'ธรรมนูญ ยืนยง', 'นิว', 'ชาย', '2011-01-05', 'ม.3/2', '2', '1100412589634', '88/1 ต.ห้วยชัน อ.เมือง จ.นครสวรรค์ 60000', 'สมควร ยืนยง', 'ปู่', '0894567890', 'เกษตรกร', 15.697154, 100.142981, 'pending', 'not_assessed'),
-            ('STD004', '10955', 'เด็กหญิง', 'พิมพ์ชนก รอดพ้น', 'พลอย', 'หญิง', '2011-11-14', 'ม.3/2', '2', '1100412589635', '124 หมู่ 9 ต.ห้วยชัน อ.เมือง จ.นครสวรรค์ 60000', 'รินดา รอดพ้น', 'มารดา', '0823456789', 'ค้าขาย', 15.711202, 100.131422, 'pending', 'not_assessed');
+            INSERT INTO `schools` (`smiss_code`, `school_name`, `province`, `district`, `director_name`, `status`) VALUES
+            ('10123456', 'โรงเรียนกิตติศึกษาประชานุสรณ์', 'นครสวรรค์', 'เมือง', 'นายณรงค์วิทย์ สุวรรณศรี', 'approved'),
+            ('10123457', 'โรงเรียนวัดห้วยชันวิทยา', 'นครสวรรค์', 'เมือง', 'นางสาวจารุภัทร จิตมั่นคง', 'approved'),
+            ('10123458', 'โรงเรียนนครสวรรค์พิทยาคม', 'นครสวรรค์', 'เมือง', 'นายสมคิด ดีเลิศ', 'approved'),
+            ('10123459', 'โรงเรียนบ้านท่าลาดวิทยา', 'นครสวรรค์', 'ท่าตะโก', 'นายวินัย ชัยประเสริฐ', 'pending');
+        ");
+
+        // 2. Seed users
+        $stmtUser = $pdo->prepare("INSERT INTO `users` (`username`, `password`, `role`, `smiss_code`, `full_name`, `phone`, `status`, `assigned_grade`, `assigned_room`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmtUser->execute(['superadmin', $superAdminPass, 'super_admin', null, 'ผู้ดูแลระบบสูงสุด (Super Admin)', '0800000000', 'approved', null, null]);
+        $stmtUser->execute(['schooladmin', $schoolAdminPass, 'school_admin', '10123456', 'แอดมิน โรงเรียนกิตติศึกษาฯ', '0811111111', 'approved', null, null]);
+        $stmtUser->execute(['teacher1', $teacherPass, 'teacher', '10123456', 'คุณครูกิตติยา รักเรียน', '0822222222', 'approved', 'ม.3', '2']);
+
+        // 3. Seed students
+        $pdo->exec("
+            INSERT INTO `students` (`id`, `smiss_code`, `student_code`, `prefix`, `name`, `nickname`, `gender`, `birth_date`, `grade`, `room`, `citizen_id`, `address`, `parent_name`, `parent_relation`, `parent_phone`, `parent_job`, `latitude`, `longitude`, `visit_status`, `risk_level`) VALUES
+            ('STD001', '10123456', '10952', 'เด็กชาย', 'กิตติศักดิ์ มั่งคั่ง', 'กอล์ฟ', 'ชาย', '2011-04-12', 'ม.3', '2', '1100412589632', '12/4 หมู่ 2 ต.ห้วยชัน อ.เมือง จ.นครสวรรค์ 60000', 'สมยศ มั่งคั่ง', 'บิดา', '0812345678', 'รับจ้างทั่วไป', 15.702462, 100.137254, 'pending', 'not_assessed'),
+            ('STD002', '10123456', '10953', 'เด็กหญิง', 'จารุวรรณ ใยใส', 'จ๋า', 'หญิง', '2011-08-25', 'ม.3', '2', '1100412589633', '45 หมู่ 6 ต.ห้วยชัน อ.เมือง จ.นครสวรรค์ 60000', 'นภา ใยใส', 'มารดา', '0887654321', 'พนักงานโรงงาน', 15.708912, 100.125191, 'pending', 'not_assessed'),
+            ('STD003', '10123456', '10954', 'เด็กชาย', 'ธรรมนูญ ยืนยง', 'นิว', 'ชาย', '2011-01-05', 'ม.3', '2', '1100412589634', '88/1 ต.ห้วยชัน อ.เมือง จ.นครสวรรค์ 60000', 'สมควร ยืนยง', 'ปู่', '0894567890', 'เกษตรกร', 15.697154, 100.142981, 'pending', 'not_assessed'),
+            ('STD004', '10123456', '10955', 'เด็กหญิง', 'พิมพ์ชนก รอดพ้น', 'พลอย', 'หญิง', '2011-11-14', 'ม.3', '2', '1100412589635', '124 หมู่ 9 ต.ห้วยชัน อ.เมือง จ.นครสวรรค์ 60000', 'รินดา รอดพ้น', 'มารดา', '0823456789', 'ค้าขาย', 15.711202, 100.131422, 'pending', 'not_assessed');
 
             INSERT INTO `checklist` (`id`, `task`, `category`, `completed`) VALUES
             ('CHK1', 'จัดเตรียมแบบบันทึก นร.01 และนัดแนะผู้ปกครองล่วงหน้า', 'prepare', 1),
@@ -215,6 +264,7 @@ try {
         } catch (PDOException $ex) {}
 
         $studentColumns = [
+            'smiss_code' => "VARCHAR(8) NULL COMMENT 'รหัส SMISS 8 หลัก'",
             'student_code' => "VARCHAR(55) NULL COMMENT 'รหัสนักเรียน'",
             'prefix' => "VARCHAR(30) NULL COMMENT 'คำนำหน้าชื่อ'",
             'name' => "VARCHAR(150) NOT NULL DEFAULT '' COMMENT 'ชื่อจริง-นามสกุล'",
@@ -246,6 +296,61 @@ try {
             if ($colQuery->rowCount() == 0) {
                 $pdo->exec("ALTER TABLE `students` ADD `$col` $definition");
             }
+        }
+
+        // Repair existing students to have default SMISS code if null
+        try {
+            $pdo->exec("UPDATE `students` SET `smiss_code` = '10123456' WHERE `smiss_code` IS NULL OR `smiss_code` = ''");
+        } catch (PDOException $ex) {}
+
+        // Create schools if missing
+        $schCheck = $pdo->query("SHOW TABLES LIKE 'schools'");
+        if ($schCheck->rowCount() == 0) {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `schools` (
+              `smiss_code` VARCHAR(8) NOT NULL,
+              `school_name` VARCHAR(255) NOT NULL,
+              `province` VARCHAR(100) NULL,
+              `district` VARCHAR(100) NULL,
+              `director_name` VARCHAR(155) NULL,
+              `status` VARCHAR(20) NOT NULL DEFAULT 'pending',
+              `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY (`smiss_code`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+            $pdo->exec("
+                INSERT INTO `schools` (`smiss_code`, `school_name`, `province`, `district`, `director_name`, `status`) VALUES
+                ('10123456', 'โรงเรียนกิตติศึกษาประชานุสรณ์', 'นครสวรรค์', 'เมือง', 'นายณรงค์วิทย์ สุวรรณศรี', 'approved'),
+                ('10123457', 'โรงเรียนวัดห้วยชันวิทยา', 'นครสวรรค์', 'เมือง', 'นางสาวจารุภัทร จิตมั่นคง', 'approved'),
+                ('10123458', 'โรงเรียนนครสวรรค์พิทยาคม', 'นครสวรรค์', 'เมือง', 'นายสมคิด ดีเลิศ', 'approved'),
+                ('10123459', 'โรงเรียนบ้านท่าลาดวิทยา', 'นครสวรรค์', 'ท่าตะโก', 'นายวินัย ชัยประเสริฐ', 'pending');
+            ");
+        }
+
+        // Create users if missing
+        $usrCheck = $pdo->query("SHOW TABLES LIKE 'users'");
+        if ($usrCheck->rowCount() == 0) {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `users` (
+              `id` INT AUTO_INCREMENT PRIMARY KEY,
+              `username` VARCHAR(100) UNIQUE NOT NULL,
+              `password` VARCHAR(255) NOT NULL,
+              `role` VARCHAR(20) NOT NULL,
+              `smiss_code` VARCHAR(8) NULL,
+              `full_name` VARCHAR(150) NOT NULL,
+              `phone` VARCHAR(30) NULL,
+              `status` VARCHAR(20) NOT NULL DEFAULT 'pending',
+              `assigned_grade` VARCHAR(30) NULL,
+              `assigned_room` VARCHAR(10) NULL,
+              `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+            $superAdminPass = password_hash('password123', PASSWORD_DEFAULT);
+            $schoolAdminPass = password_hash('password123', PASSWORD_DEFAULT);
+            $teacherPass = password_hash('password123', PASSWORD_DEFAULT);
+
+            $stmtUser = $pdo->prepare("INSERT INTO `users` (`username`, `password`, `role`, `smiss_code`, `full_name`, `phone`, `status`, `assigned_grade`, `assigned_room`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmtUser->execute(['superadmin', $superAdminPass, 'super_admin', null, 'ผู้ดูแลระบบสูงสุด (Super Admin)', '0800000000', 'approved', null, null]);
+            $stmtUser->execute(['schooladmin', $schoolAdminPass, 'school_admin', '10123456', 'แอดมิน โรงเรียนกิตติศึกษาฯ', '0811111111', 'approved', null, null]);
+            $stmtUser->execute(['teacher1', $teacherPass, 'teacher', '10123456', 'คุณครูกิตติยา รักเรียน', '0822222222', 'approved', 'ม.3', '2']);
         }
 
         // Check if visit_records table is missing
@@ -313,6 +418,14 @@ try {
               FOREIGN KEY (`student_id`) REFERENCES `students` (`id`) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
         }
+
+        // Ensure smiss_code column exists in visit_records
+        try {
+            $colQueryVR = $pdo->query("SHOW COLUMNS FROM `visit_records` LIKE 'smiss_code'");
+            if ($colQueryVR->rowCount() == 0) {
+                $pdo->exec("ALTER TABLE `visit_records` ADD `smiss_code` VARCHAR(8) NULL");
+            }
+        } catch (PDOException $ex) {}
 
         // Check if household_members table is missing
         $hmTableCheck = $pdo->query("SHOW TABLES LIKE 'household_members'");
