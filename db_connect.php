@@ -28,6 +28,20 @@ try {
         $pdo->exec("USE `" . DB_NAME . "`");
     }
 
+    // Dynamic Reset Option: If school admin requests ?reset_db=1, drop all tables to start fresh peacefully!
+    if (isset($_GET['reset_db']) && $_GET['reset_db'] == '1') {
+        $pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
+        $pdo->exec("DROP TABLE IF EXISTS `checklist`");
+        $pdo->exec("DROP TABLE IF EXISTS `schedules`");
+        $pdo->exec("DROP TABLE IF EXISTS `household_members`");
+        $pdo->exec("DROP TABLE IF EXISTS `visit_records`");
+        $pdo->exec("DROP TABLE IF EXISTS `students`");
+        $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
+        
+        header("Location: index.php?msg=" . urlencode("ล้างและคืนค่าเริ่มต้นฐานข้อมูลสำเร็จเรียบร้อยแล้วระบบจะสร้างตารางใหม่ทันที!"));
+        exit;
+    }
+
     // 3. Auto-Installer: Check if table 'students' exists. Install schema if missing!
     $tableCheck = $pdo->query("SHOW TABLES LIKE 'students'");
     if ($tableCheck->rowCount() == 0) {
@@ -178,6 +192,28 @@ try {
     } else {
         // Safe Migrator: If table exists but is of an older version (e.g. missing 'student_code' or others)
         // This guarantees that columns are automatically repaired without data loss!
+        
+        // 1. Force convert engine to InnoDB to support foreign keys
+        try {
+            $pdo->exec("ALTER TABLE `students` ENGINE=InnoDB");
+        } catch (PDOException $ex) {}
+
+        // 2. Force convert collation to utf8mb4_unicode_ci to match visit_records
+        try {
+            $pdo->exec("ALTER TABLE `students` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+        } catch (PDOException $ex) {}
+
+        // 3. Ensure 'id' column is exactly VARCHAR(50) and PRIMARY KEY
+        try {
+            $pdo->exec("ALTER TABLE `students` MODIFY `id` VARCHAR(50) NOT NULL");
+        } catch (PDOException $ex) {}
+        try {
+            $pkCheck = $pdo->query("SHOW KEYS FROM `students` WHERE Key_name = 'PRIMARY'");
+            if ($pkCheck->rowCount() == 0) {
+                $pdo->exec("ALTER TABLE `students` ADD PRIMARY KEY (`id`)");
+            }
+        } catch (PDOException $ex) {}
+
         $studentColumns = [
             'student_code' => "VARCHAR(55) NULL COMMENT 'รหัสนักเรียน' AFTER `id`",
             'prefix' => "VARCHAR(30) NULL COMMENT 'คำนำหน้าชื่อ' AFTER `student_code`",
@@ -329,6 +365,10 @@ try {
         }
     }
 } catch (PDOException $e) {
-    die("เชื่อมต่อฐานข้อมูลล้มเหลว (Connection failed): " . $e->getMessage() . "<br><br><b>คำแนะนำสำหรับครูผู้ควบคุมระบบ:</b> กรุณาเปิดโปรแกรม XAMPP / AppServ แล้วทำการตรวจสอบว่า MySQL ได้รันอยู่ตามปกติ รวมถึงกำหนดรหัสผ่านและชื่อผู้ใช้งาน (DB_USER, DB_PASS) ในไฟล์ <code>db_connect.php</code> ให้ถูกต้องด้วยครับ");
+    die("เชื่อมต่อฐานข้อมูลล้มเหลว (Connection failed): " . $e->getMessage() . "<br><br>
+    <b>💡 คำแนะนำสำหรับระบบโฮสติ้งป้อนย้าย (Plesk/cPanel/XAMPP):</b><br>
+    หากมีตารางเก่าชื่อ <code>students</code> ตกค้างและมีโครงสร้างต่างกัน ส่งผลให้สร้างตาราง Foreign Key ผิดพลาด (Can't create table / errno 150)<br>
+    ท่านสามารถสั่งให้ระบบ <b>ล้างตารางทั้งหมดและสร้างใหม่แบบอัตโนมัติ 100%</b> ได้ทันที<br>
+    👉 เพียงเปิดหน้าเว็บแล้วพิมพ์ลิ้งก์ต่อท้าย: <a href='index.php?reset_db=1' style='color:#dc2626; font-weight:bold;text-decoration:underline;'>index.php?reset_db=1</a> แล้วกด Enter ครับ!");
 }
 ?>
