@@ -158,14 +158,38 @@ if ($userId && $userRole === 'super_admin') {
         $pdo->prepare("UPDATE schools SET status = 'approved' WHERE smiss_code = ?")->execute([$smiss]);
         // Also auto-approve the school_admin of that school
         $pdo->prepare("UPDATE users SET status = 'approved' WHERE smiss_code = ? AND role = 'school_admin'")->execute([$smiss]);
-        header("Location: index.php?page=super_dashboard&msg=" . urlencode("อนุมัติเข้าใช้งานโรงเรียนและผู้ดูแลระบบโรงเรียนสำเร็จเรียบร้อย!"));
+        header("Location: index.php?page=schools_list&msg=" . urlencode("อนุมัติเข้าใช้งานโรงเรียนและผู้ดูแลระบบโรงเรียนสำเร็จเรียบร้อย!"));
         exit;
     }
     if ($action === 'reject_school' && isset($_GET['smiss_code'])) {
         $smiss = $_GET['smiss_code'];
         $pdo->prepare("DELETE FROM users WHERE smiss_code = ?")->execute([$smiss]);
         $pdo->prepare("DELETE FROM schools WHERE smiss_code = ?")->execute([$smiss]);
-        header("Location: index.php?page=super_dashboard&msg=" . urlencode("ปฏิเสธคำขอเปิดใช้งานสมบูรณ์และลบข้อมูลสำเร็จ!"));
+        header("Location: index.php?page=schools_list&msg=" . urlencode("ปฏิเสธคำขอเปิดใช้งานสมบูรณ์และลบข้อมูลสำเร็จ!"));
+        exit;
+    }
+    if ($action === 'approve_user_by_super' && isset($_GET['id'])) {
+        $uid = intval($_GET['id']);
+        $pdo->prepare("UPDATE users SET status = 'approved' WHERE id = ?")->execute([$uid]);
+        header("Location: index.php?page=schools_list&msg=" . urlencode("อนุมัติผู้ใช้งานดังกล่าวให้เข้าปฏิบัติหน้าที่เรียบร้อย!"));
+        exit;
+    }
+    if ($action === 'make_school_admin' && isset($_GET['id'])) {
+        $uid = intval($_GET['id']);
+        $pdo->prepare("UPDATE users SET role = 'school_admin', status = 'approved' WHERE id = ?")->execute([$uid]);
+        header("Location: index.php?page=schools_list&msg=" . urlencode("ยกระดับคุณครูดังกล่าวเป็นผู้ดูแลระบบ (School Admin) โรงเรียนสำเร็จเรียบร้อย!"));
+        exit;
+    }
+    if ($action === 'make_teacher' && isset($_GET['id'])) {
+        $uid = intval($_GET['id']);
+        $pdo->prepare("UPDATE users SET role = 'teacher' WHERE id = ?")->execute([$uid]);
+        header("Location: index.php?page=schools_list&msg=" . urlencode("ปรับระดับฐานผู้ใช้งานดังกล่าวลงเป็นคุณครูที่ปรึกษาเรียบร้อย!"));
+        exit;
+    }
+    if ($action === 'reject_user_by_super' && isset($_GET['id'])) {
+        $uid = intval($_GET['id']);
+        $pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$uid]);
+        header("Location: index.php?page=schools_list&msg=" . urlencode("ถอดถอนและปฏิเสธคำขอผู้ใช้งานดังกล่าวสำเร็จ!"));
         exit;
     }
 }
@@ -468,6 +492,8 @@ $schoolsList = [];
 $pendingSchools = [];
 $pendingUsers = [];
 $teachersList = [];
+$schoolsStats = [];
+$allUsersInSchools = [];
 
 if ($userId) {
     if ($userRole === 'super_admin') {
@@ -480,6 +506,25 @@ if ($userId) {
         $schoolsList = $pdo->query("SELECT * FROM schools ORDER BY smiss_code ASC")->fetchAll();
         $pendingSchools = $pdo->query("SELECT * FROM schools WHERE status = 'pending' ORDER BY created_at DESC")->fetchAll();
         $pendingUsers = $pdo->query("SELECT u.*, sch.school_name FROM users u JOIN schools sch ON u.smiss_code = sch.smiss_code WHERE u.status = 'pending' ORDER BY u.created_at DESC")->fetchAll();
+        
+        $schoolsStats = $pdo->query("
+            SELECT 
+                sch.*,
+                (SELECT COUNT(*) FROM students stu WHERE stu.smiss_code = sch.smiss_code) as total_students,
+                (SELECT COUNT(*) FROM users u WHERE u.smiss_code = sch.smiss_code) as total_users,
+                (SELECT COUNT(*) FROM users u WHERE u.smiss_code = sch.smiss_code AND u.role = 'school_admin') as total_admins,
+                (SELECT COUNT(*) FROM visit_records vr WHERE vr.smiss_code = sch.smiss_code) as total_visits
+            FROM schools sch
+            ORDER BY sch.smiss_code ASC
+        ")->fetchAll();
+        
+        $allUsersInSchools = $pdo->query("
+            SELECT u.*, sch.school_name 
+            FROM users u 
+            LEFT JOIN schools sch ON u.smiss_code = sch.smiss_code 
+            WHERE u.role != 'super_admin' 
+            ORDER BY sch.school_name ASC, u.role DESC, u.full_name ASC
+        ")->fetchAll();
     } elseif ($userRole === 'school_admin') {
         $stmtStr = $pdo->prepare("SELECT * FROM students WHERE smiss_code = ? ORDER BY student_code ASC");
         $stmtStr->execute([$userSmiss]);
@@ -863,7 +908,7 @@ if (isset($_GET['msg'])) {
                 <span class="text-[9px] bg-slate-150 px-1.5 py-0.5 rounded text-slate-600 font-bold inline-block mt-1">
                     ขอบข่าย: 
                     <?php if ($userRole === 'super_admin'): ?>
-                        Super Admin ส่วนกลางจังหวัด
+                        ผู้ดูแลระบบกลุ่มโรงเรียนทั้งหมด (Super Admin)
                     <?php elseif ($userRole === 'school_admin'): ?>
                         แอดมินประจำสถาบันศึกษา
                     <?php else: ?>
@@ -883,26 +928,59 @@ if (isset($_GET['msg'])) {
         <!-- Navigation Menu -->
         <aside class="lg:col-span-1 space-y-4 print:hidden">
             <div class="bg-white/40 backdrop-blur-md rounded-2xl border border-white/50 p-4 space-y-1 shadow-xs">
-                <a href="index.php?page=dashboard" class="w-full flex items-center gap-3 p-3 text-xs font-semibold rounded-xl text-left transition <?= $page === 'dashboard' ? 'bg-slate-850 text-white shadow-md' : 'text-slate-600 hover:bg-white/60' ?>">
-                    <i data-lucide="home" class="w-4 h-4 text-emerald-400"></i>
-                    แผงควบคุมหลัก
-                </a>
-                <a href="index.php?page=students" class="w-full flex items-center gap-3 p-3 text-xs font-semibold rounded-xl text-left transition <?= $page === 'students' ? 'bg-slate-850 text-white shadow-md' : 'text-slate-600 hover:bg-white/60' ?>">
-                    <i data-lucide="users" class="w-4 h-4 text-slate-400"></i>
-                    ทำเนียบนักเรียน (<?= count($students) ?>)
-                </a>
-                <a href="index.php?page=visit-form" class="w-full flex items-center gap-3 p-3 text-xs font-semibold rounded-xl text-left transition <?= $page === 'visit-form' ? 'bg-slate-850 text-white shadow-md' : 'text-slate-600 hover:bg-white/60' ?>">
-                    <i data-lucide="file-text" class="w-4 h-4 text-slate-400"></i>
-                    บันทึกเยี่ยมหลักใหม่
-                </a>
-                <a href="index.php?page=records" class="w-full flex items-center gap-3 p-3 text-xs font-semibold rounded-xl text-left transition <?= $page === 'records' ? 'bg-slate-850 text-white shadow-md' : 'text-slate-600 hover:bg-white/60' ?>">
-                    <i data-lucide="book-open" class="w-4 h-4 text-slate-400"></i>
-                    รายงานพรีเมียร์ นร.01
-                </a>
-                <a href="index.php?page=checklist" class="w-full flex items-center gap-3 p-3 text-xs font-semibold rounded-xl text-left transition <?= $page === 'checklist' ? 'bg-slate-850 text-white shadow-md' : 'text-slate-600 hover:bg-white/60' ?>">
-                    <i data-lucide="list-todo" class="w-4 h-4 text-slate-400"></i>
-                    ภารกิจครูผู้เยือน
-                </a>
+                <?php if ($userRole === 'super_admin'): ?>
+                    <a href="index.php?page=super_dashboard" class="w-full flex items-center gap-3 p-3 text-xs font-semibold rounded-xl text-left transition <?= $page === 'super_dashboard' ? 'bg-slate-850 text-white shadow-md' : 'text-slate-600 hover:bg-white/60' ?>">
+                        <i data-lucide="layout-dashboard" class="w-4 h-4 text-emerald-400"></i>
+                        สถิติแผงควบคุมหลัก
+                    </a>
+                    <a href="index.php?page=schools_list" class="w-full flex items-center gap-3 p-3 text-xs font-semibold rounded-xl text-left transition <?= $page === 'schools_list' ? 'bg-slate-850 text-white shadow-md' : 'text-slate-600 hover:bg-white/60' ?>">
+                        <i data-lucide="building-2" class="w-4 h-4 text-emerald-400"></i>
+                        อนุมัติโรงเรียน & แอดมิน
+                    </a>
+                    <a href="index.php?page=students" class="w-full flex items-center gap-3 p-3 text-xs font-semibold rounded-xl text-left transition <?= $page === 'students' ? 'bg-slate-850 text-white shadow-md' : 'text-slate-600 hover:bg-white/60' ?>">
+                        <i data-lucide="users" class="w-4 h-4 text-slate-400"></i>
+                        ทำเนียบนักเรียนทั้งหมด (<?= count($students) ?>)
+                    </a>
+                    <a href="index.php?page=records" class="w-full flex items-center gap-3 p-3 text-xs font-semibold rounded-xl text-left transition <?= $page === 'records' ? 'bg-slate-850 text-white shadow-md' : 'text-slate-650 hover:bg-white/60' ?>">
+                        <i data-lucide="book-open" class="w-4 h-4 text-slate-400"></i>
+                        รายงานเยี่ยมบ้านทั้งหมด (<?= count($records) ?>)
+                    </a>
+                <?php else: ?>
+                    <a href="index.php?page=dashboard" class="w-full flex items-center gap-3 p-3 text-xs font-semibold rounded-xl text-left transition <?= $page === 'dashboard' ? 'bg-slate-850 text-white shadow-md' : 'text-slate-600 hover:bg-white/60' ?>">
+                        <i data-lucide="home" class="w-4 h-4 text-emerald-400"></i>
+                        แผงควบคุมหลัก
+                    </a>
+                    <a href="index.php?page=students" class="w-full flex items-center gap-3 p-3 text-xs font-semibold rounded-xl text-left transition <?= $page === 'students' ? 'bg-slate-850 text-white shadow-md' : 'text-slate-600 hover:bg-white/60' ?>">
+                        <i data-lucide="users" class="w-4 h-4 text-slate-400"></i>
+                        ทำเนียบนักเรียน (<?= count($students) ?>)
+                    </a>
+                    <?php if ($userRole === 'teacher'): ?>
+                        <a href="index.php?page=visit-form" class="w-full flex items-center gap-3 p-3 text-xs font-semibold rounded-xl text-left transition <?= $page === 'visit-form' ? 'bg-slate-850 text-white shadow-md' : 'text-slate-600 hover:bg-white/60' ?>">
+                            <i data-lucide="file-text" class="w-4 h-4 text-slate-400"></i>
+                            บันทึกเยี่ยมหลักใหม่
+                        </a>
+                    <?php endif; ?>
+                    <a href="index.php?page=records" class="w-full flex items-center gap-3 p-3 text-xs font-semibold rounded-xl text-left transition <?= $page === 'records' ? 'bg-slate-850 text-white shadow-md' : 'text-slate-600 hover:bg-white/60' ?>">
+                        <i data-lucide="book-open" class="w-4 h-4 text-slate-400"></i>
+                        รายงานพรีเมียร์ นร.01
+                    </a>
+                    <?php if ($userRole === 'school_admin'): ?>
+                        <a href="index.php?page=teachers_mgmt" class="w-full flex items-center gap-3 p-3 text-xs font-semibold rounded-xl text-left transition <?= $page === 'teachers_mgmt' ? 'bg-slate-850 text-white shadow-md' : 'text-slate-600 hover:bg-white/60' ?>">
+                            <i data-lucide="user-cog" class="w-4 h-4 text-slate-400"></i>
+                            อนุมัติคุณครู/ผู้ใช้งาน (<?= count($teachersList) ?>)
+                        </a>
+                        <a href="index.php?page=school_settings" class="w-full flex items-center gap-3 p-3 text-xs font-semibold rounded-xl text-left transition <?= $page === 'school_settings' ? 'bg-slate-850 text-white shadow-md' : 'text-slate-650 hover:bg-white/60' ?>">
+                            <i data-lucide="settings" class="w-4 h-4 text-slate-400"></i>
+                            ตั้งค่าสิทธิ์โรงเรียน
+                        </a>
+                    <?php endif; ?>
+                    <?php if ($userRole === 'teacher'): ?>
+                        <a href="index.php?page=checklist" class="w-full flex items-center gap-3 p-3 text-xs font-semibold rounded-xl text-left transition <?= $page === 'checklist' ? 'bg-slate-850 text-white shadow-md' : 'text-slate-600 hover:bg-white/60' ?>">
+                            <i data-lucide="list-todo" class="w-4 h-4 text-slate-400"></i>
+                            ภารกิจครูผู้เยือน
+                        </a>
+                    <?php endif; ?>
+                <?php endif; ?>
             </div>
 
             <!-- Server Environment widget info -->
@@ -929,8 +1007,248 @@ if (isset($_GET['msg'])) {
                 </div>
             <?php endif; ?>
 
+            <!-- SUPER ADMIN DASHBOARD -->
+            <?php if ($page === 'super_dashboard'): ?>
+                <div class="space-y-6">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h2 class="text-base font-bold text-slate-850">ศูนย์รวมสถิติข้อมูลและการเข้าเยี่ยมบ้านกลุ่มเครือข่ายโรงเรียน</h2>
+                            <p class="text-xs text-slate-400">ติดตามยอดสะสมการเข้าใช้งาน ระบบคัดกรอง นร.01 แต่ละสถาบันการศึกษาแบบ Real-time</p>
+                        </div>
+                    </div>
+
+                    <!-- Summary Stats Blocks -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div class="p-4 bg-white/70 border rounded-2xl shadow-xs text-center">
+                            <span class="text-slate-400 text-[10px] font-bold block uppercase mb-1">สถาบันการศึกษาทั้งหมด</span>
+                            <strong class="text-3xl text-slate-850 font-extrabold"><?= count($schoolsStats) ?></strong> แห่ง
+                        </div>
+                        <div class="p-4 bg-indigo-50/60 border border-indigo-100 rounded-2xl shadow-xs text-center">
+                            <span class="text-indigo-600 text-[10px] font-bold block uppercase mb-1">ยอดรวมตรวจเยี่ยมบ้าน</span>
+                            <?php 
+                            $totalVisits = 0; 
+                            foreach ($schoolsStats as $ss) $totalVisits += $ss['total_visits'];
+                            ?>
+                            <strong class="text-3xl text-indigo-800 font-extrabold"><?= $totalVisits ?></strong> ครั้ง
+                        </div>
+                        <div class="p-4 bg-emerald-50/60 border border-emerald-100 rounded-2xl shadow-xs text-center">
+                            <span class="text-emerald-600 text-[10px] font-bold block uppercase mb-1">จำนวนผู้ใช้งานในระบบ</span>
+                            <?php 
+                            $totalUsers = 0; 
+                            foreach ($schoolsStats as $ss) $totalUsers += $ss['total_users'];
+                            ?>
+                            <strong class="text-3xl text-emerald-850 font-extrabold"><?= $totalUsers ?></strong> ราย
+                        </div>
+                        <div class="p-4 bg-amber-50/60 border border-amber-100 rounded-2xl shadow-xs text-center">
+                            <span class="text-amber-600 text-[10px] font-bold block uppercase mb-1">เป้าหมายนักเรียนทั้งหมด</span>
+                            <strong class="text-3xl text-amber-800 font-extrabold"><?= count($students) ?></strong> คน
+                        </div>
+                    </div>
+
+                    <!-- Schools stats Table -->
+                    <div class="bg-white/40 backdrop-blur-md rounded-3xl border border-white/60 p-6 shadow-sm">
+                        <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center gap-1.5">
+                            <i data-lucide="bar-chart-2" class="w-4 h-4 text-indigo-500"></i>
+                            ตารางเปรียบเทียบสถิติการใช้งานรายสถาบันการศึกษา
+                        </h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs border-collapse">
+                                <thead>
+                                    <tr class="border-b border-slate-200 text-slate-400 font-bold">
+                                        <th class="py-3 px-4">รหัส SMISS</th>
+                                        <th class="py-3 px-4">ชื่อสถานศึกษา</th>
+                                        <th class="py-3 px-4 text-center">จำนวนครู/แอดมิน</th>
+                                        <th class="py-3 px-4 text-center">เป้าหมายนักเรียน</th>
+                                        <th class="py-3 px-4 text-center">ความคืบหน้าเยี่ยมบ้าน (ครั้ง)</th>
+                                        <th class="py-3 px-4 text-center">อัตราส่วนเสร็จสิ้น</th>
+                                        <th class="py-3 px-4 text-right">สถานะระบบ</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($schoolsStats as $sch): ?>
+                                        <tr class="border-b border-slate-100 hover:bg-white/40 transition">
+                                            <td class="py-3.5 px-4 font-mono font-bold text-slate-600"><?= htmlspecialchars($sch['smiss_code']) ?></td>
+                                            <td class="py-3.5 px-4">
+                                                <div class="font-bold text-slate-850"><?= htmlspecialchars($sch['school_name']) ?></div>
+                                                <div class="text-[10px] text-slate-400"><?= htmlspecialchars($sch['district'] . ' • ' . $sch['province']) ?></div>
+                                            </td>
+                                            <td class="py-3.5 px-4 text-center font-semibold text-slate-700"><?= $sch['total_users'] ?> คน</td>
+                                            <td class="py-3.5 px-4 text-center font-semibold text-slate-700"><?= $sch['total_students'] ?> ราย</td>
+                                            <td class="py-3.5 px-4 text-center font-mono">
+                                                <span class="inline-block py-0.5 px-2 bg-indigo-50 border border-indigo-100 rounded-lg text-indigo-800 font-bold">
+                                                    <?= $sch['total_visits'] ?> ครั้ง
+                                                </span>
+                                            </td>
+                                            <td class="py-3.5 px-4 text-center">
+                                                <?php 
+                                                $rate = $sch['total_students'] > 0 ? round(($sch['total_visits'] / $sch['total_students']) * 105) : 0; 
+                                                $rate = min($rate, 100); // Caps at 100%
+                                                ?>
+                                                <div class="flex items-center justify-center gap-1.5">
+                                                    <div class="w-16 bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                                                        <div class="bg-indigo-500 h-full" style="width: <?= $rate ?>%"></div>
+                                                    </div>
+                                                    <span class="font-bold text-[10px] text-slate-700"><?= $rate ?>%</span>
+                                                </div>
+                                            </td>
+                                            <td class="py-3.5 px-4 text-right">
+                                                <?php if ($sch['status'] === 'approved'): ?>
+                                                    <span class="bg-emerald-50 text-emerald-800 border border-emerald-250 py-0.5 px-2 rounded-md font-bold text-[10px]">
+                                                        ACTIVE
+                                                    </span>
+                                                <?php else: ?>
+                                                    <span class="bg-amber-50 text-amber-700 border border-amber-250 py-0.5 px-2 rounded-md font-bold text-[10px] animate-pulse">
+                                                        PENDING
+                                                    </span>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            <!-- SCHOOLS AND ADMIN MANAGEMENT PAGE -->
+            <?php elseif ($page === 'schools_list'): ?>
+                <div class="space-y-6">
+                    <div>
+                        <h2 class="text-base font-bold text-slate-850">จัดการอนุมัติโรงเรียนเครือข่าย & บุคลากร</h2>
+                        <p class="text-xs text-slate-400">พิจารณาใบขอจดทะเบียนใช้งานรวมถึงกำหนดระดับสิทธิ์ให้คุณครูขึ้นทำหน้าที่ แอดมินโรงเรียนประจำสถาบันได้ด้วยตนเอง</p>
+                    </div>
+
+                    <!-- 1. School Approvals -->
+                    <div class="bg-white/40 backdrop-blur-md rounded-3xl border border-white/60 p-6 shadow-sm space-y-4">
+                        <span class="text-xs bg-slate-150 py-1 px-3 rounded-xl font-bold text-slate-600 block w-max uppercase tracking-wider">
+                            ส่วนตรวจสอบจดทะเบียนกลุ่มโรงเรียน
+                        </span>
+                        <h3 class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                            <i data-lucide="building" class="w-4 h-4 text-emerald-500"></i>
+                            คำขอใบจดทะเบียนเปิดระบบโรงเรียนใหม่ (รอการพิจารณา)
+                        </h3>
+                        <?php if (count($pendingSchools) === 0): ?>
+                            <div class="p-6 text-center border border-dashed rounded-2xl bg-white/70 text-slate-400 text-xs font-semibold">
+                                ปัจจุบันไม่มีสถาบันโรงเรียนที่ยื่นคำขอเปิดสิทธิ์ใหม่ในสัญญาสัญจรกลุ่มนี้
+                            </div>
+                        <?php else: ?>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <?php foreach ($pendingSchools as $psch): ?>
+                                    <div class="bg-white/70 border p-4.5 rounded-2xl flex flex-col justify-between hover:shadow-md transition gap-3">
+                                        <div class="space-y-1">
+                                            <div class="flex items-center gap-2">
+                                                <span class="bg-amber-100 text-amber-800 font-mono font-bold text-[9px] px-2 py-0.5 rounded">SMISS: <?= htmlspecialchars($psch['smiss_code']) ?></span>
+                                                <span class="text-[9px] text-slate-400 font-bold"><?= htmlspecialchars($psch['district'] . ' • ' . $psch['province']) ?></span>
+                                            </div>
+                                            <h4 class="text-xs font-bold text-slate-850"><?= htmlspecialchars($psch['school_name']) ?></h4>
+                                            <p class="text-[10px] text-slate-500">ผอ.โรงเรียน: <?= htmlspecialchars($psch['director_name'] ?: 'ไม่ระบุ') ?></p>
+                                        </div>
+                                        <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100/60">
+                                            <a href="index.php?action=reject_school&smiss_code=<?= $psch['smiss_code'] ?>" class="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] py-1.5 px-3 rounded-lg border border-rose-100 transition" onclick="return confirm('คุณแน่ใจหรือไม่ว่าต้องการอนุมัติปฏิเสธคำขอของโรงเรียนนี้ และลบประวัติพิกัดทั้งปวง?')">
+                                                ปฏิเสธ
+                                            </a>
+                                            <a href="index.php?action=approve_school&smiss_code=<?= $psch['smiss_code'] ?>" class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[10px] py-1.5 px-4 rounded-lg shadow-xs transition">
+                                                อนุมัติเปิดระบบ
+                                            </a>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <!-- 2. Manage Users, Appoint roles & Approvals -->
+                    <div class="bg-white/40 backdrop-blur-md rounded-3xl border border-white/60 p-6 shadow-sm space-y-4">
+                        <span class="text-xs bg-slate-150 py-1 px-3 rounded-xl font-bold text-slate-600 block w-max uppercase tracking-wider">
+                            แต่งตั้งจัดวางกำลังพลโรงเรียน
+                        </span>
+                        <h3 class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                            <i data-lucide="user-check" class="w-4 h-4 text-indigo-500"></i>
+                            ลงทะเบียนคุณครู & สิทธิ์ประจำระบบงานคัดกรอง นร.01
+                        </h3>
+                        
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs border-collapse">
+                                <thead>
+                                    <tr class="border-b border-slate-200 text-slate-400 font-bold">
+                                        <th class="py-3 px-4">ชื่อผู้ส่งคำขอ</th>
+                                        <th class="py-3 px-4">สังกัดภาระโรงเรียน</th>
+                                        <th class="py-3 px-4">ชื่อบัญชีใช้งาน</th>
+                                        <th class="py-3 px-4 text-center">ตำแหน่งปัจจุบัน</th>
+                                        <th class="py-3 px-4 text-center">การอนุมัติ</th>
+                                        <th class="py-3 px-4 text-right">สลับ/แต่งตั้ง Admin ประจำโรงเรียน</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($allUsersInSchools as $usr): ?>
+                                        <tr class="border-b border-slate-100 hover:bg-white/40 transition">
+                                            <td class="py-3 px-4">
+                                                <div class="font-bold text-slate-850"><?= htmlspecialchars($usr['full_name']) ?></div>
+                                                <div class="text-[10px] text-slate-500">โทร: <?= htmlspecialchars($usr['phone'] ?: 'ไม่มีเบอร์ติดต่อ') ?></div>
+                                            </td>
+                                            <td class="py-3 px-4">
+                                                <div class="font-semibold text-slate-700"><?= htmlspecialchars($usr['school_name'] ?: 'ไม่ระบุโรงเรียน') ?></div>
+                                                <div class="text-[9px] text-slate-400 font-mono">SMISS: <?= htmlspecialchars($usr['smiss_code']) ?></div>
+                                            </td>
+                                            <td class="py-3 px-4 font-mono font-bold text-slate-600"><?= htmlspecialchars($usr['username']) ?></td>
+                                            <td class="py-3 px-4 text-center">
+                                                <?php if ($usr['role'] === 'school_admin'): ?>
+                                                    <span class="bg-violet-100 text-violet-800 border border-violet-200 py-0.5 px-2.5 rounded-full font-bold text-[9px] uppercase">
+                                                        Admin โรงเรียน
+                                                    </span>
+                                                <?php else: ?>
+                                                    <span class="bg-sky-50 text-sky-800 border border-sky-150 py-0.5 px-2.5 rounded-full font-bold text-[9px] uppercase">
+                                                        ครูที่ปรึกษา
+                                                    </span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td class="py-3 px-4 text-center">
+                                                <?php if ($usr['status'] === 'approved'): ?>
+                                                    <span class="text-emerald-700 font-bold flex items-center justify-center gap-1">
+                                                        <span class="inline-block w-1.5 h-1.5 bg-emerald-500 rounded-full"></span> เปิดใช้งาน
+                                                    </span>
+                                                <?php else: ?>
+                                                    <span class="text-amber-600 font-bold flex items-center justify-center gap-1 animate-pulse">
+                                                        <span class="inline-block w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce"></span> รออนุมัติ
+                                                    </span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td class="py-3 px-4 text-right">
+                                                <div class="flex justify-end gap-1.5">
+                                                    <!-- Approve user if pending -->
+                                                    <?php if ($usr['status'] !== 'approved'): ?>
+                                                        <a href="index.php?action=approve_user_by_super&id=<?= $usr['id'] ?>" class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[10px] py-1.5 px-2.5 rounded-lg transition" title="อนุมัติการเข้าใช้งานระบบ">
+                                                            อนุมัติ
+                                                        </a>
+                                                    <?php endif; ?>
+
+                                                    <!-- Role appointments switch -->
+                                                    <?php if ($usr['role'] === 'teacher'): ?>
+                                                        <a href="index.php?action=make_school_admin&id=<?= $usr['id'] ?>" class="bg-violet-50 hover:bg-violet-100 text-violet-800 border border-violet-200 font-bold text-[10px] py-1.5 px-2.5 rounded-lg transition" title="แต่งตั้งคุณครูคนนี้ขึ้นเป็น Admin ดูแลระบบของโรงเรียน">
+                                                            👑 แต่งตั้งเป็น Admin
+                                                        </a>
+                                                    <?php else: ?>
+                                                        <a href="index.php?action=make_teacher&id=<?= $usr['id'] ?>" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] py-1.5 px-2.5 rounded-lg transition border" title="เปลี่ยนสถานะจากแอดมินกลับมาเป็นคุณครูผู้ใช้ทั่วไป">
+                                                            ลดกลับเป็นครู
+                                                        </a>
+                                                    <?php endif; ?>
+
+                                                    <!-- Reject/Delete -->
+                                                    <a href="index.php?action=reject_user_by_super&id=<?= $usr['id'] ?>" class="bg-rose-50 text-rose-700 hover:bg-rose-100 font-bold text-[10px] py-1.5 px-2 rounded-lg border border-rose-100 transition" onclick="return confirm('คุณยืนยันที่จะลบผู้ใช้นี้ออกจากฐานข้อมูลระบบสัญจรหรือไม่?')">
+                                                        ลบผู้ใช้
+                                                    </a>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
             <!-- 1. DASHBOARD PAGE -->
-            <?php if ($page === 'dashboard'): ?>
+            <?php elseif ($page === 'dashboard'): ?>
                 <div class="space-y-6">
                     <div class="bg-white/30 backdrop-blur-md border border-white/60 rounded-3xl p-6 shadow-xs grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div class="p-4 bg-white/70 rounded-2xl border shadow-sm text-center">
